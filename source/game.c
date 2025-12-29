@@ -87,6 +87,7 @@
 #define TM_BLIND_SELECT_START           1
 #define TM_END_ANIM_SEQ                 12
 
+// TODO: Rename "PID" to "PAL_IDX"
 // Palette IDs
 #define BOSS_BLIND_PRIMARY_PID               1
 #define MAIN_MENU_PLAY_BUTTON_OUTLINE_PID    2
@@ -96,14 +97,10 @@
 #define NEXT_ROUND_BTN_SELECTED_BORDER_PID   5
 #define BLIND_BG_SHADOW_PID                  5
 #define SHOP_PANEL_SHADOW_PID                6
-#define PLAY_HAND_BTN_PID                    6
 #define BOSS_BLIND_SHADOW_PID                7
-#define PLAY_HAND_BTN_BORDER_PID             7
 #define REROLL_BTN_SELECTED_BORDER_PID       7
 #define SHOP_LIGHTS_1_PID                    8
-#define DISCARD_BTN_BORDER_PID               8
 #define BLIND_SKIP_BTN_SELECTED_BORDER_PID   10
-#define DISCARD_BTN_PID                      13
 #define SHOP_LIGHTS_2_PID                    14
 #define BLIND_SELECT_BTN_PID                 15
 #define NEXT_ROUND_BTN_PID                   16
@@ -114,6 +111,15 @@
 #define REWARD_PANEL_BORDER_PID              19
 #define SHOP_LIGHTS_4_PID                    22
 #define SHOP_BOTTOM_PANEL_BORDER_PID         26
+
+#define PLAY_HAND_BTN_PID                    6
+#define PLAY_HAND_BTN_BORDER_PID             7
+#define DISCARD_BTN_PID                      13
+#define DISCARD_BTN_BORDER_PID               8
+#define SORT_BTN_PID                         9
+#define SORT_BY_RANK_BTN_BORDER_PID          22
+#define SORT_BY_SUIT_BTN_BORDER_PID          23
+
 // Naming the stage where cards return from the discard pile to the deck "undiscard"
 
 /* This needs to stay a power of 2 and small enough
@@ -1993,6 +1999,67 @@ static void game_playing_play_hand_on_pressed(void)
     selection_grid_move_selection_vert(&game_playing_selection_grid, -1);
 }
 
+static void hand_deselect_all_cards(void)
+{
+    bool any_cards_deselected = false;
+    for (int i = 0; i <= get_hand_top(); i++)
+    {
+        if (card_object_is_selected(hand[i]))
+        {
+            card_object_set_selected(hand[i], false);
+            hand_selections--;
+            any_cards_deselected = true;
+        }
+    }
+
+    if (any_cards_deselected)
+    {
+        play_sfx(SFX_CARD_DESELECT, MM_BASE_PITCH_RATE, SFX_DEFAULT_VOLUME);
+    }
+}
+
+static inline void hand_toggle_sort(void)
+{
+    sort_by_suit = !sort_by_suit;
+    sort_cards();
+}
+
+static inline void hand_change_sort(bool to_sort_by_suit)
+{
+    if (to_sort_by_suit != sort_by_suit)
+    {
+        sort_by_suit = to_sort_by_suit;
+        sort_cards();
+    }
+}
+
+static void game_playing_play_hand_on_pressed(void)
+{
+    if (!can_play_hand())
+        return;
+
+    hand_state = HAND_PLAY;
+    display_hands(--hands);
+
+    // Move back to hand selection
+    selection_grid_move_selection_vert(&game_playing_selection_grid, -1);
+    if (!can_play_hand())
+        return;
+
+    hand_state = HAND_PLAY;
+    display_hands(--hands);
+
+    // Move back to hand selection
+    selection_grid_move_selection_vert(&game_playing_selection_grid, -1);
+}
+
+static inline bool hand_can_play(void)
+{
+    if (hand_state != HAND_SELECT || hand_selections == 0)
+        return false;
+    return true;
+}
+
 static int game_playing_hand_row_get_size(void)
 {
     return hand_get_size();
@@ -2230,6 +2297,17 @@ static void hand_select_card(int index)
     set_hand();
 }
 
+static inline void game_playing_process_hand_select_input(void)
+{
+    selection_grid_process_input(&game_playing_selection_grid);
+}
+
+// TODO: Stray from merge    
+//     if (key_hit(SORT_HAND))
+//     {
+//         hand_toggle_sort();
+//     }
+    
 static inline void game_playing_process_hand_select_input(void)
 {
     selection_grid_process_input(&game_playing_selection_grid);
