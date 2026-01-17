@@ -2047,14 +2047,6 @@ static void game_playing_play_hand_on_pressed(void)
 
     // Move back to hand selection
     selection_grid_move_selection_vert(&game_playing_selection_grid, -1);
-    if (!can_play_hand())
-        return;
-
-    hand_state = HAND_PLAY;
-    display_hands(--hands);
-
-    // Move back to hand selection
-    selection_grid_move_selection_vert(&game_playing_selection_grid, -1);
 }
 
 static inline bool hand_can_play(void)
