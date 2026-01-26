@@ -2034,7 +2034,7 @@ void game_playing_execute_discard()
 {
     if (!can_discard_hand())
         return;
-    
+
     hand_state = HAND_DISCARD;
     display_discards(--discards);
     set_hand();
