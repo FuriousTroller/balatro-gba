@@ -256,9 +256,9 @@ static int calculate_interest_reward(void);
 static void game_over_anim_frame(void);
 
 static void game_playing_discard_on_pressed(void);
-static void game_playing_execute_discard();
+static void game_playing_execute_discard(void);
 static void game_playing_play_hand_on_pressed(void);
-static void game_playing_execute_play_hand();
+static void game_playing_execute_play_hand(void);
 static void game_playing_sort_by_rank_on_pressed(void);
 static void game_playing_sort_by_suit_on_pressed(void);
 
