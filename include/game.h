@@ -24,6 +24,8 @@
 
 // Matching the position of the on-screen buttons
 #define PLAY_HAND_KEY    KEY_L
+// Same value as SELL_KEY - activated on the joker row, while this is activated on the hand row
+
 #define DISCARD_HAND_KEY KEY_R
 
 struct List;
