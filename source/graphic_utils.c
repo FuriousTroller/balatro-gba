@@ -263,10 +263,7 @@ void main_bg_se_copy_expand_3x3_rect(Rect se_dest_rect, BG_POINT src_top_left_pn
     dest_sides_rect.bottom -= 1;
 
     // Copy left and right sides
-    main_bg_se_3w_copy_expand_left_right_sides(
-        &dest_sides_rect,
-        &src_middle_left_pnt
-    );
+    main_bg_se_3w_copy_expand_left_right_sides(&dest_sides_rect, &src_middle_left_pnt);
 
     // Fill the center if needed
     if (dest_rect_width > 2 && dest_rect_height > 2)
@@ -289,17 +286,14 @@ void main_bg_se_copy_expand_3w_row(Rect se_dest_rect, BG_POINT src_row_left_pnt)
     {
         return;
     }
-    
+
     // Copy left and right sides
-    main_bg_se_3w_copy_expand_left_right_sides(
-        &se_dest_rect,
-        &src_row_left_pnt
-    );
+    main_bg_se_3w_copy_expand_left_right_sides(&se_dest_rect, &src_row_left_pnt);
 
     if (dest_rect_width > 2)
     {
         SE middle_fill_se = se_mat[MAIN_BG_SBB][src_row_left_pnt.y][src_row_left_pnt.x + 1];
-        Rect dest_inner_fill_rect = se_dest_rect; 
+        Rect dest_inner_fill_rect = se_dest_rect;
 
         // Avoid copying the sides when filling the rect.
         dest_inner_fill_rect.left += 1;
