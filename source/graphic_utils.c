@@ -281,6 +281,7 @@ void main_bg_se_copy_expand_3x3_rect(Rect se_dest_rect, BG_POINT src_top_left_pn
 
 void main_bg_se_copy_expand_3w_row(Rect se_dest_rect, BG_POINT src_row_left_pnt)
 {
+    clip_se_rect_to_screenblock(&se_dest_rect);
     int dest_rect_width = rect_width(&se_dest_rect);
     if (dest_rect_width < 2)
     {
