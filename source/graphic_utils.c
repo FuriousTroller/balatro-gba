@@ -303,7 +303,7 @@ void main_bg_se_copy_expand_3w_row(Rect se_dest_rect, BG_POINT src_row_left_pnt)
 
         // Avoid copying the sides when filling the rect.
         dest_inner_fill_rect.left += 1;
-        dest_inner_fill_rect.right += 1;
+        dest_inner_fill_rect.right -= 1;
         main_bg_se_fill_rect_with_se(middle_fill_se, dest_inner_fill_rect);
     }
 }

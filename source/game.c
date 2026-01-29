@@ -371,6 +371,7 @@ static const Rect GAME_OVER_ANIM_RECT       = {11,      8,       23,     28};
 static const BG_POINT NEW_RUN_BTN_DEST_POS  = {15,      26};
 static const Rect NEW_RUN_BTN_SRC_RECT      = {0,       30,      4,      31};
 static const BG_POINT ROUND_END_REWARDS_ELLIPSIS_POS = {10, 13};
+static const BG_POINT TOP_LEFT_PANEL_EMPTY_3W_ROW_POS = {29, 31};
 
 // Flaming score animation frames
 #define SCORE_FLAMES_ANIM_FREQ  5 // animation will run at 12FPS
@@ -4777,16 +4778,8 @@ static void game_blind_select_display_blind_panel()
 
         main_bg_se_clear_rect(ROUND_END_MENU_RECT);
 
-        for (int y = 0; y < 5; y++)
-        {
-            int y_from = 28;
-            int y_to = 0 + y;
-
-            Rect from = {0, y_from, 8, y_from + 1};
-            BG_POINT to = {0, y_to};
-
-            main_bg_se_copy_rect(from, to);
-        }
+        // Need to clear the top left panel as a side effect of change_background()
+        main_bg_se_copy_expand_3w_row(TOP_LEFT_PANEL_ANIM_RECT, TOP_LEFT_PANEL_EMPTY_3W_ROW_POS);
 
         reset_top_left_panel_bottom_row();
     }
