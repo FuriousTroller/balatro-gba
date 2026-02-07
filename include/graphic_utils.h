@@ -233,7 +233,7 @@ void main_bg_se_copy_rect_1_tile_vert(Rect se_rect, enum ScreenVertDir direction
 void main_bg_se_copy_rect(Rect se_rect, BG_POINT dest_pos);
 
 /**
- * @brief Copies a 3x3 rect and expands it to a passed size.
+ * @brief Copies a 3x3 rect and expands it to fit a passed rect.
  *
  * Performs the following operation:
  *
@@ -242,12 +242,30 @@ void main_bg_se_copy_rect(Rect se_rect, BG_POINT dest_pos);
  * 3. The sides are stretched
  * 4. The center is filled.
  *
- * @param se_rect_dest destination for 3x3 copy, if rect sides are length 2, then the sides are not
- * copied, only the corners. **But dest rect sides must be at least 2.**
+ * @param se_rect_dest  destination for the 3x3 copy, if rect sides are length 2, then the sides are
+ * not copied, and the center is not filled (in the case of both top and bottom sides),
+ * and only the corners are copied.
+ * **But dest rect sides must be at least 2.**
  *
  * @param se_rect_src_3x3_top_left points to the top left corner of the source 3x3 rect.
  */
 void main_bg_se_copy_expand_3x3_rect(Rect se_rect_dest, BG_POINT se_rect_src_3x3_top_left);
+
+/**
+ * @brief Copies a 3-width SE rect and expands it to fit a passed rect.
+ *
+ * Performs the following operation:
+ *
+ * 1. The sides are stretched
+ * 2. The center is filled.
+ *
+ * @param se_rect_dest destination for the copy; if rect width is 2, the center is not
+ * filled and only the sides are copied.
+ * **But dest rect width must be at least 2.**
+ *
+ * @param src_row_left_pnt points to the leftmost tile of the source 3-width rect.
+ */
+void main_bg_se_copy_expand_3w_row(Rect se_dest_rect, BG_POINT src_row_left_pnt);
 
 /**
  * @brief Moves a rect in the main background vertically in direction by a single tile.
