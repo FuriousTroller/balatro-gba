@@ -23,6 +23,11 @@ typedef struct SortArgs
     int size;
 
     /**
+     * @brief Size of the elements in the array
+     */
+    int elem_size;
+
+    /**
      * @brief Comparison function that returns true if first arg should come before second arg
      */
     bool (*compare)(void*, void*);
