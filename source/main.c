@@ -109,8 +109,14 @@ void draw()
 #ifdef GBLATRO_PROFILE
 static void profile_timer_breakpoint(void)
 {
-    volatile static s32 prev_frame_time = 0;
-    volatile static s32 frame_time = 0;
+    static volatile u32 a;
+    (void)a;
+}
+
+static void profile_timer_stop(void)
+{
+    static volatile s32 prev_frame_time = 0;
+    static volatile s32 frame_time = 0;
 
     frame_time = profile_stop();
 
@@ -122,7 +128,10 @@ static void profile_timer_breakpoint(void)
     //tte_printf("#{P:0,8 ;x:0x2000} FRAME_TIME_PREV:  %ld", prev_frame_time);
     //tte_printf("#{P:0,16;x:0x2000} FRAME_DIFF:      %ld", frame_diff);
 
+    profile_timer_breakpoint();
+
     prev_frame_time = frame_time;
+
 }
 #endif
 
@@ -141,7 +150,7 @@ int main()
         update();
         draw();
 #ifdef GBLATRO_PROFILE
-        profile_timer_breakpoint();
+        profile_timer_stop();
 #endif
     }
 
