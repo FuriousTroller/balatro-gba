@@ -107,6 +107,10 @@ void draw()
 
 #define GBLATRO_PROFILE
 #ifdef GBLATRO_PROFILE
+
+// Add a breakpoint here in gdb, then `next` into the
+// the caller function `profile_timer_stop` and `print`
+// its variables 
 static void profile_timer_breakpoint(void)
 {
     static volatile u32 a;
