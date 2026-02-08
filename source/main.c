@@ -19,6 +19,7 @@
 // Audio
 #include "soundbank.h"
 #include "soundbank_bin.h"
+#include "tonc_core.h"
 
 void init()
 {
@@ -104,17 +105,44 @@ void draw()
     sprite_draw();
 }
 
+#define GBLATRO_PROFILE
+#ifdef GBLATRO_PROFILE
+static void profile_timer_breakpoint(void)
+{
+    volatile static s32 prev_frame_time = 0;
+    volatile static s32 frame_time = 0;
+
+    frame_time = profile_stop();
+
+    volatile s32 frame_diff = frame_time - prev_frame_time;
+    (void)frame_diff;
+    
+    // feel free to turn on, turns the game very slow
+    //tte_printf("#{P:0,0 ;x:0x2000} FRAME_TIME:       %ld", frame_time);
+    //tte_printf("#{P:0,8 ;x:0x2000} FRAME_TIME_PREV:  %ld", prev_frame_time);
+    //tte_printf("#{P:0,16;x:0x2000} FRAME_DIFF:      %ld", frame_diff);
+
+    prev_frame_time = frame_time;
+}
+#endif
+
 int main()
 {
     init();
 
     while (true)
     {
+#ifdef GBLATRO_PROFILE
+        profile_start();
+#endif
         VBlankIntrWait();
         mmFrame();
         key_poll();
         update();
         draw();
+#ifdef GBLATRO_PROFILE
+        profile_timer_breakpoint();
+#endif
     }
 
     return 0;
