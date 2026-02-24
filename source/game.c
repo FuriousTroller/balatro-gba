@@ -235,6 +235,7 @@ static void game_round_end_display_cashout(void);
 static void game_round_end_dismiss_round_end_panel(void);
 
 static void sort_cards(void);
+static inline void joker_start_discard_animation(JokerObject* joker_object);
 static void change_background(enum BackgroundId id);
 static void display_temp_score(u32 value);
 static void display_score(u32 value);
@@ -595,6 +596,7 @@ static int round = 0;
 static int ante = 0;
 static int money = 0;
 static u32 score = 0;
+int total_hands_played = 0; // This is the global count variable for Supernova
 static u32 temp_score = 0; // This is the score that shows in the same spot as the hand type.
 static bool score_flames_active = false;
 static FIXED lerped_score = 0;
@@ -750,6 +752,8 @@ void game_init()
     ante = STARTING_ANTE;
     money = STARTING_MONEY;
     score = STARTING_SCORE;
+
+    total_hands_played = 0; // Resets Supernova on new run
 
     blind_select_tokens[BLIND_TYPE_SMALL] = blind_token_new(
         BLIND_TYPE_SMALL,
@@ -2103,6 +2107,8 @@ static void game_playing_execute_play_hand(void)
 
     hand_state = HAND_PLAY;
     display_hands(--hands);
+
+    total_hands_played++; // Adds +1 every time a hand is played!
 }
 
 static int game_playing_hand_row_get_size(void)
@@ -2358,22 +2364,65 @@ static inline void game_playing_handle_round_over(void)
 
     if (score >= blind_get_requirement(current_blind, ante))
     {
-        if (current_blind == BLIND_TYPE_BOSS)
-        {
-            if (ante < MAX_ANTE)
-            {
-                display_ante(++ante);
-            }
-            else
-            {
-                next_state = GAME_STATE_WIN;
-            }
-        }
+        // ... (existing code)
     }
     else if (hands == 0)
     {
         next_state = GAME_STATE_LOSE;
     }
+
+    // ---> START JOKER ROUND END HOOK <---
+    if (next_state == GAME_STATE_ROUND_END || next_state == GAME_STATE_WIN)
+    {
+        // These two variables remember their state between frames
+        static bool jokers_processed = false;
+        static int delay_timer = 0;
+
+        if (!jokers_processed)
+        {
+            for (int i = 0; i < list_get_len(&_owned_jokers_list); i++)
+            {
+                JokerObject* joker_obj = (JokerObject*)list_get_at_idx(&_owned_jokers_list, i);
+                JokerEffect* effect = NULL;
+                u32 flags = joker_get_score_effect(joker_obj->joker, NULL, JOKER_EVENT_ON_ROUND_END, &effect);
+                
+                // 1. Golden Joker Payout (HAPPENS EXACTLY ONCE)
+                if (flags & JOKER_EFFECT_FLAG_MONEY) 
+                {
+                    money += effect->money; 
+                    display_money(); 
+                    joker_object_score(joker_obj, NULL, JOKER_EVENT_ON_ROUND_END); 
+                }
+                
+                // 2. Banana Dying & Cavendish Unlock (HAPPENS EXACTLY ONCE)
+                if (flags & JOKER_EFFECT_FLAG_EXPIRE)
+                {
+                    joker_object_score(joker_obj, NULL, JOKER_EVENT_ON_ROUND_END); 
+                    set_shop_joker_avail(54, true); 
+                    
+                    erase_price_under_sprite_object(joker_obj->sprite_object); 
+                    remove_owned_joker(i);                                     
+                    joker_start_discard_animation(joker_obj);                  
+                    i--; 
+                }
+            }
+            
+            // Lock the vault and start the clock
+            jokers_processed = true;
+            delay_timer = timer; 
+        }
+
+        // Wait exactly 120 frames (2 seconds) before moving to the shop
+        if (timer < delay_timer + 120)
+        {
+            return; // Freezes the game state so you can read the text
+        }
+
+        // 2 seconds are up! Clean the screen and unlock the vault for the next Blind
+        tte_erase_rect_wrapper(PLAYED_CARDS_SCORES_RECT);
+        jokers_processed = false; 
+    }
+    // ---> END JOKER ROUND END HOOK <---
 
     game_change_state(next_state);
 }
@@ -4862,6 +4911,18 @@ static inline void game_start(void)
         TTE_WHITE_PB,
         MAX_ANTE
     ); // Ante
+
+    // Lock Cavendish from appearing in the shop early
+    set_shop_joker_avail(54, false);
+
+    // Force spawn all 4 custom Jokers instantly
+    // int test_jokers[] = {52, 53, 54, 55}; 
+    // for(int i = 0; i < 4; i++) {
+    //     JokerObject* obj = joker_object_new(joker_new(test_jokers[i]));
+    //     obj->sprite_object->y = int2fx(HELD_JOKERS_POS.y);
+    //     obj->sprite_object->ty = int2fx(HELD_JOKERS_POS.y);
+    //     add_joker(obj);
+    // }
 
     game_change_state(GAME_STATE_BLIND_SELECT);
 }

@@ -9,6 +9,8 @@
 
 #define MISPRINT_MAX_MULT 23
 
+extern int total_hands_played; // Supernova thingy
+
 #define SCORE_ON_EVENT_ONLY_WITH_CARD(scored_card, restricted_event, checked_event) \
     if (checked_event != restricted_event || scored_card == NULL)                   \
     {                                                                               \
@@ -329,7 +331,30 @@ static u32 sock_and_buskin_joker_effect(
     enum JokerEvent joker_event,
     JokerEffect** joker_effect
 );
-
+static u32 golden_joker_effect(
+    Joker* joker,
+    Card* scored_card,
+    enum JokerEvent joker_event,
+    JokerEffect** joker_effect
+);
+static u32 gros_michel_joker_effect(
+    Joker* joker,
+    Card* scored_card,
+    enum JokerEvent joker_event,
+    JokerEffect** joker_effect
+);
+static u32 cavendish_joker_effect(
+    Joker* joker, 
+    Card* scored_card,
+    enum JokerEvent joker_event,
+    JokerEffect** joker_effect
+);
+static u32 supernova_joker_effect(
+    Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+);
 // clang-format off
 /* The index of a joker in the registry matches its ID.
  * The joker sprites are matched by ID so the position in the registry
@@ -394,6 +419,10 @@ const JokerInfo joker_registry[] =
     { COMMON_JOKER,    4, scholar_joker_effect              }, // 49
     { UNCOMMON_JOKER,  8, fibonnaci_joker_effect            }, // 50
     { UNCOMMON_JOKER,  6, seltzer_joker_effect,             }, // 51
+    { COMMON_JOKER,    6, golden_joker_effect               }, // 52
+    { COMMON_JOKER,    5, gros_michel_joker_effect          }, // 53
+    { COMMON_JOKER,    5, cavendish_joker_effect            }, // 54 
+    { COMMON_JOKER,    5, supernova_joker_effect            }, // 55
     
     // The following jokers don't have sprites yet,
     // uncomment them when their sprites are added.
@@ -1739,4 +1768,89 @@ static u32 sock_and_buskin_joker_effect(
     }
 
     return effect_flags_ret;
+}
+
+static u32 golden_joker_effect(
+    Joker* joker,
+    Card* scored_card,
+    enum JokerEvent joker_event,
+    JokerEffect** joker_effect
+)
+{
+    u32 effect_flags_ret = JOKER_EFFECT_FLAG_NONE;
+
+    if (joker_event == JOKER_EVENT_ON_ROUND_END)
+    {
+        *joker_effect = &shared_joker_effect;
+        (*joker_effect)->money = 4;
+        effect_flags_ret = JOKER_EFFECT_FLAG_MONEY;
+    }
+    return effect_flags_ret;
+}
+
+static u32 gros_michel_joker_effect(
+    Joker* joker,
+    Card* scored_card,
+    enum JokerEvent joker_event,
+    JokerEffect** joker_effect
+)
+{
+    u32 effect_flags_ret = JOKER_EFFECT_FLAG_NONE;
+
+    if (joker_event == JOKER_EVENT_INDEPENDENT)
+    {
+        *joker_effect = &shared_joker_effect;
+        (*joker_effect)->mult = 15;
+        effect_flags_ret |= JOKER_EFFECT_FLAG_MULT;
+    }
+
+    if (joker_event == JOKER_EVENT_ON_ROUND_END)
+    {
+        if (true)//(random() % 6 == 0)
+        {
+            *joker_effect = &shared_joker_effect;
+            (*joker_effect)->message = "Extinct!";
+            (*joker_effect)->expire = true;
+            effect_flags_ret = (JOKER_EFFECT_FLAG_MESSAGE | JOKER_EFFECT_FLAG_EXPIRE);
+        }
+    }
+    return effect_flags_ret;
+}
+static u32 cavendish_joker_effect(
+    Joker* joker, Card* scored_card,
+    enum JokerEvent joker_event,
+    JokerEffect** joker_effect
+) 
+{
+    u32 flags = JOKER_EFFECT_FLAG_NONE;
+    if (joker_event == JOKER_EVENT_INDEPENDENT) {
+        *joker_effect = &shared_joker_effect;
+        (*joker_effect)->xmult = 3; // Cavendish provides XMult
+        flags |= JOKER_EFFECT_FLAG_XMULT;
+    }
+    if (joker_event == JOKER_EVENT_ON_ROUND_END) {
+        if (random() % 1000 == 0) { // 1 in 1000 chance to die
+            *joker_effect = &shared_joker_effect;
+            (*joker_effect)->message = "Extinct!";
+            (*joker_effect)->expire = true;
+            flags |= (JOKER_EFFECT_FLAG_MESSAGE | JOKER_EFFECT_FLAG_EXPIRE);
+        }
+    }
+    return flags;
+}
+
+static u32 supernova_joker_effect(
+    Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+) 
+{
+    if (joker_event == JOKER_EVENT_INDEPENDENT) {
+        *joker_effect = &shared_joker_effect;
+        // Mult equals the total hands played this run!
+        (*joker_effect)->mult = total_hands_played; 
+        return JOKER_EFFECT_FLAG_MULT;
+    }
+    return JOKER_EFFECT_FLAG_NONE;
 }
