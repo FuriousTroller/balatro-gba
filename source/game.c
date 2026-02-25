@@ -2041,6 +2041,20 @@ static void game_playing_execute_discard(void)
         return;
 
     hand_state = HAND_DISCARD;
+    // ---> START GREEN JOKER DISCARD HOOK <---
+    for (int i = 0; i < list_get_len(&_owned_jokers_list); i++) {
+        JokerObject* joker_obj = (JokerObject*)list_get_at_idx(&_owned_jokers_list, i);
+        
+        // If the Joker is Green Joker (ID 56), subtract 1 Mult
+        if (joker_obj->joker->id == 56) { 
+            // Prevent the Mult from dropping below 0
+            if (joker_obj->joker->persistent_state > 0) {
+                joker_obj->joker->persistent_state -= 1; 
+            }
+            joker_object_shake(joker_obj, SFX_CARD_DESELECT); // Visual feedback
+        }
+    }
+    // ---> END GREEN JOKER DISCARD HOOK <---
     display_discards(--discards);
     set_hand();
 }
@@ -4915,8 +4929,8 @@ static inline void game_start(void)
     // Lock Cavendish from appearing in the shop early
     set_shop_joker_avail(54, false);
 
-    // Force spawn all 4 custom Jokers instantly
-    // int test_jokers[] = {52, 53, 54, 55}; 
+    // Debug: Force spawn all 4 custom Jokers instantly
+    // int test_jokers[] = {52, 55, 56, 57}; 
     // for(int i = 0; i < 4; i++) {
     //     JokerObject* obj = joker_object_new(joker_new(test_jokers[i]));
     //     obj->sprite_object->y = int2fx(HELD_JOKERS_POS.y);

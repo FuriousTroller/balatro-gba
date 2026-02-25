@@ -355,6 +355,19 @@ static u32 supernova_joker_effect(
     enum JokerEvent joker_event, 
     JokerEffect** joker_effect
 );
+static u32 green_joker_effect(
+    Joker* joker, 
+    Card* scored_card,
+    enum JokerEvent joker_event,
+    JokerEffect** joker_effect
+);
+static u32 square_joker_effect(
+    Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+);
+
 // clang-format off
 /* The index of a joker in the registry matches its ID.
  * The joker sprites are matched by ID so the position in the registry
@@ -423,6 +436,8 @@ const JokerInfo joker_registry[] =
     { COMMON_JOKER,    5, gros_michel_joker_effect          }, // 53
     { COMMON_JOKER,    5, cavendish_joker_effect            }, // 54 
     { COMMON_JOKER,    5, supernova_joker_effect            }, // 55
+    { COMMON_JOKER,    4, green_joker_effect                }, // 56
+    { COMMON_JOKER,    4, square_joker_effect               }, // 57
     
     // The following jokers don't have sprites yet,
     // uncomment them when their sprites are added.
@@ -1853,4 +1868,64 @@ static u32 supernova_joker_effect(
         return JOKER_EFFECT_FLAG_MULT;
     }
     return JOKER_EFFECT_FLAG_NONE;
+}
+
+static u32 green_joker_effect(
+    Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+) 
+{
+    u32 flags = JOKER_EFFECT_FLAG_NONE;
+    s32* mult_bonus = &(joker->persistent_state); // The memory slot that remembers the Mult
+
+    // Set starting Mult to 0 when you buy it
+    if (joker_event == JOKER_EVENT_ON_JOKER_CREATED) {
+        *mult_bonus = 0; 
+    }
+
+    // Add +1 Mult every time a hand is played
+    if (joker_event == JOKER_EVENT_ON_HAND_PLAYED) {
+        *mult_bonus += 1; 
+    }
+
+    // Apply the Mult to the score
+    if (joker_event == JOKER_EVENT_INDEPENDENT && *mult_bonus > 0) {
+        *joker_effect = &shared_joker_effect;
+        (*joker_effect)->mult = *mult_bonus;
+        flags |= JOKER_EFFECT_FLAG_MULT;
+    }
+    return flags;
+}
+
+static u32 square_joker_effect(
+    Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+) 
+{
+    u32 flags = JOKER_EFFECT_FLAG_NONE;
+    s32* chips_bonus = &(joker->persistent_state); // The memory slot that remembers the Chips
+
+    // Set starting Chips to 16 when you buy it
+    if (joker_event == JOKER_EVENT_ON_JOKER_CREATED) {
+        *chips_bonus = 16; 
+    }
+
+    if (joker_event == JOKER_EVENT_ON_HAND_PLAYED) {
+        // get_played_top() returns the index of the top card. Index 3 means exactly 4 cards!
+        if (get_played_top() == 3) {
+            *chips_bonus += 4; 
+        }
+    }
+
+    // Apply the Chips to the score
+    if (joker_event == JOKER_EVENT_INDEPENDENT) {
+        *joker_effect = &shared_joker_effect;
+        (*joker_effect)->chips = *chips_bonus;
+        flags |= JOKER_EFFECT_FLAG_CHIPS;
+    }
+    return flags;
 }
