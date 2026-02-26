@@ -63,7 +63,6 @@ static bool _used_layers[MAX_JOKER_OBJECTS] = {false}; // Track used layers for 
 static int _joker_spritesheet_pb_map[(MAX_DEFINABLE_JOKERS + 1) / NUM_JOKERS_PER_SPRITESHEET];
 static int _joker_pb_num_sprite_users[JOKER_LAST_PB - JOKER_BASE_PB + 1] = {0};
 
-static int s_get_num_spritesheets(void);
 static int s_joker_get_spritesheet_idx(u8 joker_id);
 static void s_joker_pb_add_sprite_user(int pb);
 static void s_joker_pb_remove_sprite_user(int pb);
@@ -74,9 +73,8 @@ static int s_allocate_pb_if_needed(u8 joker_id);
 void joker_init()
 {
     // This should init once only so no need to free
-    int num_spritesheets = s_get_num_spritesheets();
-
-    for (int i = 0; i < num_spritesheets; i++)
+    // Initialize the ENTIRE map so ID 100 gets a fresh palette
+    for (int i = 0; i < NUM_ELEM_IN_ARR(_joker_spritesheet_pb_map); i++)
     {
         _joker_spritesheet_pb_map[i] = UNDEFINED;
     }
@@ -84,11 +82,14 @@ void joker_init()
 
 Joker* joker_new(u8 id)
 {
-    if (id >= get_joker_registry_size())
+// 1. Ask the registry for the info directly
+    const JokerInfo* jinfo = get_joker_registry_entry(id);
+    
+    // 2. If it returns NULL (like for IDs 60-99), abort safely!
+    if (!jinfo)
         return NULL;
 
     Joker* joker = POOL_GET(Joker);
-    const JokerInfo* jinfo = get_joker_registry_entry(id);
 
     joker->id = id;
     joker->modifier = BASE_EDITION; // TODO: Make this a parameter
@@ -166,7 +167,6 @@ JokerObject* joker_object_new(Joker* joker)
 
     if (get_modded_joker_gfx(joker->id, &modded_tiles, &modded_pal)) 
     {
-        // Load custom modded graphics WITH the offset applied!
         memcpy32(
             &tile_mem[TILE_MEM_OBJ_CHARBLOCK0_IDX][tile_index],
             &modded_tiles[joker_idx * TILE_SIZE * JOKER_SPRITE_OFFSET], 
@@ -175,7 +175,6 @@ JokerObject* joker_object_new(Joker* joker)
     }
     else
     {
-        // Load normal vanilla graphics
         memcpy32(
             &tile_mem[TILE_MEM_OBJ_CHARBLOCK0_IDX][tile_index],
             &joker_gfxTiles[joker_spritesheet_idx][joker_idx * TILE_SIZE * JOKER_SPRITE_OFFSET],
@@ -379,12 +378,6 @@ int joker_get_random_rarity()
     }
 
     return joker_rarity;
-}
-
-static int s_get_num_spritesheets()
-{
-    return (get_joker_registry_size() + NUM_JOKERS_PER_SPRITESHEET - 1) /
-           NUM_JOKERS_PER_SPRITESHEET;
 }
 
 static int s_joker_get_spritesheet_idx(u8 joker_id)

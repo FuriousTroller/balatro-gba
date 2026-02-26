@@ -97,14 +97,18 @@ bool hand_contains_full_house(u8* ranks)
 // This is mostly from Google Gemini
 bool hand_contains_straight(u8* ranks)
 {
+    bool mobius = is_joker_owned(100);
+
     if (!is_shortcut_joker_active())
     {
         int straight_size = get_straight_and_flush_size();
-        // This is the regular case of detecting straights
         int run = 0;
-        for (int i = 0; i < NUM_RANKS; ++i)
+        // If Mobius is active, loop further to allow ACE to wrap back to TWO
+        int limit = mobius ? NUM_RANKS + straight_size : NUM_RANKS;
+        
+        for (int i = 0; i < limit; ++i)
         {
-            if (ranks[i])
+            if (ranks[i % NUM_RANKS])
             {
                 if (++run >= straight_size)
                     return true;
@@ -115,92 +119,68 @@ bool hand_contains_straight(u8* ranks)
             }
         }
 
-        // Check for ace low straight
-        if (straight_size >= 2 && ranks[ACE])
+        // Vanilla Ace-Low check (Only run if Mobius is OFF, as Mobius handles it naturally)
+        if (!mobius && straight_size >= 2 && ranks[ACE])
         {
-            // With A as low, the highest rank you can use is FIVE.
-            // -1 for inclusive integer distance and another -1 for the Ace e.g. need=5 -> need 2..5
             int last_needed = TWO + (straight_size - 2);
             if (last_needed <= FIVE)
             {
                 bool ok = true;
                 for (int r = TWO; r <= last_needed; ++r)
                 {
-                    if (!ranks[r])
-                    {
-                        ok = false;
-                        break;
-                    }
+                    if (!ranks[r]) { ok = false; break; }
                 }
-                if (ok)
-                    return true;
+                if (ok) return true;
             }
         }
-
         return false;
     }
     else
     {
-        // Shortcut Joker is active, we have to detect straights where any card may "skip" 1 rank
-        // We do this with a dynamic programming algorithm that calculates
-        // the longest possible straight that can end on each rank
-        // and stopping when we find one that is {straight-size} cards long
+        // Shortcut Joker is active (Dynamic Programming Approach)
         u8 longest_short_cut_at[NUM_RANKS] = {0};
-
-        // A low ace can start a sequence. 'ace_low_len' is 1 if an ace is present,
-        // acting as a potential predecessor for TWO and THREE.
         int ace_low_len = ranks[ACE] ? 1 : 0;
-
-        // Iterate through all ranks from TWO up to ACE.
-        for (int i = 0; i < NUM_RANKS; i++)
+        int limit = mobius ? NUM_RANKS * 2 : NUM_RANKS; // Double scan for Mobius!
+        
+        for (int i = 0; i < limit; i++)
         {
-            // No cards in this rank, no straight can end here, continue
-            if (ranks[i] == 0)
+            int r = i % NUM_RANKS;
+            if (ranks[r] == 0)
             {
-                longest_short_cut_at[i] = 0;
+                longest_short_cut_at[r] = 0;
                 continue;
             }
 
             int prev_len1 = 0;
             int prev_len2 = 0;
 
-            // This logic handles the special connections for ace-low straights.
-            if (i == TWO)
+            if (r == TWO)
             {
-                // A TWO can be preceded by a low ACE (no skip).
-                prev_len1 = ace_low_len;
+                prev_len1 = mobius ? longest_short_cut_at[ACE] : ace_low_len;
+                prev_len2 = mobius ? longest_short_cut_at[KING] : 0;
             }
-            else if (i == THREE)
+            else if (r == THREE)
             {
-                // A THREE can be preceded by a TWO (no skip) or a low ACE (skip).
                 prev_len1 = longest_short_cut_at[TWO];
-                prev_len2 = ace_low_len;
+                prev_len2 = mobius ? longest_short_cut_at[ACE] : ace_low_len;
             }
-            else if (i == ACE)
+            else if (r == ACE)
             {
-                // An ACE (as the highest card) can be preceded by a KING or a QUEEN.
                 prev_len1 = longest_short_cut_at[KING];
                 prev_len2 = longest_short_cut_at[QUEEN];
             }
-            else // For all other cards (FOUR through KING).
+            else
             {
-                // A card can be preceded by the rank directly below or two ranks below.
-                prev_len1 = longest_short_cut_at[i - 1];
-                prev_len2 = longest_short_cut_at[i - 2];
+                prev_len1 = longest_short_cut_at[r - 1];
+                prev_len2 = longest_short_cut_at[r - 2];
             }
 
-            // The length of the straight ending at rank 'i' is 1 (for the card itself)
-            // plus the length of the longest valid preceding straight.
-            longest_short_cut_at[i] = 1 + max(prev_len1, prev_len2);
+            longest_short_cut_at[r] = 1 + max(prev_len1, prev_len2);
 
-            // If we've formed a sequence of {straight-size} or more cards, we have a straight.
-            if (longest_short_cut_at[i] >= get_straight_and_flush_size())
-            {
+            if (longest_short_cut_at[r] >= get_straight_and_flush_size())
                 return true;
-            }
         }
     }
-
     return false;
 }
 
@@ -273,112 +253,69 @@ int find_flush_in_played_cards(CardObject** played, int top, int min_len, bool* 
 // Returns the number of cards in the best straight or 0 if no straight of min_len is found, marks
 // as true them in out_selection[]. This is mostly from Google Gemini
 int find_straight_in_played_cards(
-    CardObject** played,
-    int top,
-    bool shortcut_active,
-    int min_len,
-    bool* out_selection
-)
+    CardObject** played, int top, bool shortcut_active, int min_len, bool* out_selection)
 {
-    if (top < 0)
-        return 0;
-    for (int i = 0; i <= top; i++)
-        out_selection[i] = false;
+    if (top < 0) return 0;
+    for (int i = 0; i <= top; i++) out_selection[i] = false;
 
-    // --- Setup for Backtracking DP ---
     u8 longest_straight_at[NUM_RANKS] = {0};
     int parent[NUM_RANKS];
-    for (int i = 0; i < NUM_RANKS; i++)
-        parent[i] = -1;
+    for (int i = 0; i < NUM_RANKS; i++) parent[i] = -1;
 
     u8 ranks[NUM_RANKS] = {0};
     for (int i = 0; i <= top; i++)
     {
         if (played[i] && played[i]->card)
-        {
             ranks[played[i]->card->rank]++;
-        }
     }
 
-    // --- Run DP to find longest straight ---
-    // This is nearly identical to hand_contains_straight() logic
-    // TODO: Consolidate functions to avoid code duplication?
-    // Might cost performance because this does a little more
+    bool mobius = is_joker_owned(100);
     int ace_low_len = ranks[ACE] ? 1 : 0;
-    for (int i = 0; i < NUM_RANKS; i++)
+    int limit = mobius ? NUM_RANKS * 2 : NUM_RANKS;
+
+    for (int i = 0; i < limit; i++)
     {
-        if (ranks[i] > 0)
+        int r = i % NUM_RANKS;
+        if (ranks[r] > 0)
         {
             int prev1 = 0, prev2 = 0;
             int parent1 = -1, parent2 = -1;
 
             if (shortcut_active)
             {
-                if (i == TWO)
-                {
-                    prev1 = ace_low_len;
-                    parent1 = ACE;
-                }
-                else if (i == THREE)
-                {
-                    prev1 = longest_straight_at[TWO];
-                    parent1 = TWO;
-                    prev2 = ace_low_len;
-                    parent2 = ACE;
-                }
-                else if (i == ACE)
-                {
-                    prev1 = longest_straight_at[KING];
-                    parent1 = KING;
-                    prev2 = longest_straight_at[QUEEN];
-                    parent2 = QUEEN;
-                }
-                else
-                {
-                    prev1 = longest_straight_at[i - 1];
-                    parent1 = i - 1;
-                    if (i > 1)
-                    {
-                        prev2 = longest_straight_at[i - 2];
-                        parent2 = i - 2;
-                    }
+                if (r == TWO) {
+                    prev1 = mobius ? longest_straight_at[ACE] : ace_low_len; parent1 = ACE;
+                    prev2 = mobius ? longest_straight_at[KING] : 0; parent2 = KING;
+                } else if (r == THREE) {
+                    prev1 = longest_straight_at[TWO]; parent1 = TWO;
+                    prev2 = mobius ? longest_straight_at[ACE] : ace_low_len; parent2 = ACE;
+                } else if (r == ACE) {
+                    prev1 = longest_straight_at[KING]; parent1 = KING;
+                    prev2 = longest_straight_at[QUEEN]; parent2 = QUEEN;
+                } else {
+                    prev1 = longest_straight_at[r - 1]; parent1 = r - 1;
+                    if (r > 1) { prev2 = longest_straight_at[r - 2]; parent2 = r - 2; }
                 }
             }
             else
             {
-                if (i == TWO)
-                {
-                    prev1 = ace_low_len;
-                    parent1 = ACE;
-                }
-                else if (i == ACE)
-                {
-                    prev1 = longest_straight_at[KING];
-                    parent1 = KING;
-                }
-                else
-                {
-                    prev1 = longest_straight_at[i - 1];
-                    parent1 = i - 1;
+                if (r == TWO) {
+                    prev1 = mobius ? longest_straight_at[ACE] : ace_low_len; parent1 = ACE;
+                } else if (r == ACE) {
+                    prev1 = longest_straight_at[KING]; parent1 = KING;
+                } else {
+                    prev1 = longest_straight_at[r - 1]; parent1 = r - 1;
                 }
             }
 
-            // Parallels longest_short_cut_at[i] = 1 + max(prev_len1, prev_len2);
-            // in hand_contains_straight()
-            if (prev1 >= prev2)
-            {
-                longest_straight_at[i] = 1 + prev1;
-                parent[i] = parent1;
-            }
-            else
-            {
-                longest_straight_at[i] = 1 + prev2;
-                parent[i] = parent2;
+            if (prev1 >= prev2) {
+                longest_straight_at[r] = 1 + prev1; parent[r] = parent1;
+            } else {
+                longest_straight_at[r] = 1 + prev2; parent[r] = parent2;
             }
         }
     }
 
-    // --- Find best straight and backtrack ---
     int best_len = 0;
     int end_rank = -1;
     for (int i = 0; i < NUM_RANKS; i++)
@@ -411,11 +348,7 @@ int find_straight_in_played_cards(
         }
 
         int final_card_count = 0;
-        for (int i = 0; i <= top; i++)
-        {
-            if (out_selection[i])
-                final_card_count++;
-        }
+        for (int i = 0; i <= top; i++) if (out_selection[i]) final_card_count++;
         return final_card_count;
     }
     return 0;

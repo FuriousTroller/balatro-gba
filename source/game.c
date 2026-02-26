@@ -693,13 +693,29 @@ static inline int get_num_shop_jokers_avail(void)
     return bitset_num_set_bits(&_avail_jokers_bitset);
 }
 
+extern size_t get_modded_registry_size(void);
+#define MODDED_JOKER_START_ID 100
+
 static inline void reset_shop_jokers(void)
 {
-    int num_jokers = get_joker_registry_size();
+    // Calculate exactly where Vanilla ends
+    int num_vanilla_jokers = get_joker_registry_size() - get_modded_registry_size();
+    
     bitset_clear(&_avail_jokers_bitset);
-    for (int i = 0; i < num_jokers; i++)
+    
+    // 1. Add Vanilla Jokers (IDs 0 to 59)
+    for (int i = 0; i < num_vanilla_jokers; i++)
     {
         bitset_set_idx(&_avail_jokers_bitset, i, true);
+    }
+
+    // 2. Add Modded Jokers (IDs 100+) ONLY if the Mod button was checked
+    if (custom_jokers_enabled) 
+    {
+        for (int i = 0; i < get_modded_registry_size(); i++)
+        {
+            bitset_set_idx(&_avail_jokers_bitset, MODDED_JOKER_START_ID + i, true);
+        }
     }
 }
 
@@ -1981,7 +1997,24 @@ static void game_round_on_init()
     hand_state = HAND_DRAW;
     cards_drawn = 0;
     hand_selections = 0;
+
+    // ---> START LAST DANCE HOOK <---
+    // ID 101 is the Last Dance Joker (Mod)
+    if (is_joker_owned(101)) 
+    {
+        if (hands > 1) 
+        {
+            int stolen_hands = hands - 1;
+            hands = 1;
+            discards += stolen_hands;
+            display_hands(hands);       
+            display_discards(discards);
+        }
+    }
+    // ---> END LAST DANCE HOOK <---
+
     display_ante(ante);
+
     playing_blind_token = blind_token_new(
         current_blind,
         CUR_BLIND_TOKEN_POS.x,
@@ -5351,6 +5384,18 @@ static inline void game_start(void)
     //     obj->sprite_object->ty = int2fx(HELD_JOKERS_POS.y);
     //     add_joker(obj);
     // }
+    // --- DEBUG TOOL: Instant Modded Cards ---
+    if (custom_jokers_enabled) 
+    {
+        int my_new_cards[] = { 100, 101 }; 
+        for (int i = 0; i < 2; i++) 
+        {
+            JokerObject* obj = joker_object_new(joker_new(my_new_cards[i]));
+            obj->sprite_object->y = int2fx(HELD_JOKERS_POS.y);
+            obj->sprite_object->ty = int2fx(HELD_JOKERS_POS.y);
+            add_joker(obj);
+        }
+    }
 
     game_change_state(GAME_STATE_BLIND_SELECT);
 }

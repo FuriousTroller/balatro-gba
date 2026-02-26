@@ -464,18 +464,35 @@ const JokerInfo joker_registry[] =
 
 static const size_t joker_registry_size = NUM_ELEM_IN_ARR(joker_registry);
 
+#define MODDED_JOKER_START_ID 100
+extern size_t get_modded_registry_size(void);
+extern const JokerInfo* get_modded_registry_entry(int local_id);
+
 const JokerInfo* get_joker_registry_entry(int joker_id)
 {
-    if (joker_id < 0 || (size_t)joker_id >= joker_registry_size)
+    if (joker_id < 0) return NULL;
+    
+    // 1. Vanilla Jokers
+    if ((size_t)joker_id < joker_registry_size)
     {
-        return NULL;
+        return &joker_registry[joker_id];
     }
-    return &joker_registry[joker_id];
+    
+    // 2. Modded Jokers Bypass
+    if (joker_id >= MODDED_JOKER_START_ID)
+    {
+        size_t local_id = joker_id - MODDED_JOKER_START_ID;
+        if (local_id < get_modded_registry_size()) 
+        {
+            return get_modded_registry_entry(local_id);
+        }
+    }
+    return NULL; 
 }
 
 size_t get_joker_registry_size(void)
 {
-    return joker_registry_size;
+    return joker_registry_size + get_modded_registry_size();
 }
 
 static u32 joker_effect_noop(
@@ -1849,10 +1866,10 @@ static u32 gros_michel_joker_effect(
 
     if (joker_event == JOKER_EVENT_ON_ROUND_END)
     {
-        if (true)//(random() % 6 == 0)
+        if (random() % 6 == 0)
         {
             *joker_effect = &shared_joker_effect;
-            (*joker_effect)->message = "Extinct!";
+            (*joker_effect)->message = "Ext!";
             (*joker_effect)->expire = true;
             effect_flags_ret = (JOKER_EFFECT_FLAG_MESSAGE | JOKER_EFFECT_FLAG_EXPIRE);
         }
