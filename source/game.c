@@ -62,7 +62,7 @@
 
 #define STARTING_ROUND 0
 #define STARTING_ANTE  1
-#define STARTING_MONEY 4
+#define STARTING_MONEY 4000
 #define STARTING_SCORE 0
 
 #define CARD_FOCUSED_UNSEL_Y 10
@@ -5315,6 +5315,7 @@ static void game_blind_select_on_exit()
 static inline void game_start(void)
 {
     tte_erase_screen();
+    reset_shop_jokers();
     set_seed(rng_seed);
     // set_seed(9); // 9 is a full house
 
@@ -5385,17 +5386,17 @@ static inline void game_start(void)
     //     add_joker(obj);
     // }
     // --- DEBUG TOOL: Instant Modded Cards ---
-    if (custom_jokers_enabled) 
-    {
-        int my_new_cards[] = { 100, 101 }; 
-        for (int i = 0; i < 2; i++) 
-        {
-            JokerObject* obj = joker_object_new(joker_new(my_new_cards[i]));
-            obj->sprite_object->y = int2fx(HELD_JOKERS_POS.y);
-            obj->sprite_object->ty = int2fx(HELD_JOKERS_POS.y);
-            add_joker(obj);
-        }
-    }
+    // if (custom_jokers_enabled) 
+    // {
+    //     int my_new_cards[] = { 100, 101 }; 
+    //     for (int i = 0; i < 2; i++) 
+    //     {
+    //         JokerObject* obj = joker_object_new(joker_new(my_new_cards[i]));
+    //         obj->sprite_object->y = int2fx(HELD_JOKERS_POS.y);
+    //         obj->sprite_object->ty = int2fx(HELD_JOKERS_POS.y);
+    //         add_joker(obj);
+    //     }
+    // }
 
     game_change_state(GAME_STATE_BLIND_SELECT);
 }
