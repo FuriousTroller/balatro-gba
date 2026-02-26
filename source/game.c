@@ -38,10 +38,11 @@
 // SE sizes
 #define ROUND_END_BLACK_PANEL_INIT_BOTTOM_SE 12
 
-#define MAIN_MENU_BUTTONS             2
-#define MAIN_MENU_IMPLEMENTED_BUTTONS 2 
-#define MAIN_MENU_PLAY_BTN_IDX        0
-#define MAIN_MENU_AI_BTN_IDX          1
+#define MAIN_MENU_BUTTONS             3
+#define MAIN_MENU_IMPLEMENTED_BUTTONS 3 
+#define MAIN_MENU_MOD_BTN_IDX         0
+#define MAIN_MENU_PLAY_BTN_IDX        1
+#define MAIN_MENU_AI_BTN_IDX          2
 
 // AI vs. Player mod constants
 #define AI_THINK_DELAY_FRAMES 40
@@ -96,6 +97,8 @@
 #define BOSS_BLIND_PRIMARY_PID               1
 #define MAIN_MENU_PLAY_BUTTON_OUTLINE_PID    2
 #define MAIN_MENU_AI_BUTTON_OUTLINE_PID      3
+#define MAIN_MENU_PLAY_BORDER_PID 8 
+#define MAIN_MENU_AI_BORDER_PID   9 
 #define REROLL_BTN_PID                       3
 #define BLIND_SKIP_BTN_PID                   5
 #define MAIN_MENU_PLAY_BUTTON_MAIN_COLOR_PID 5
@@ -297,6 +300,8 @@ static bool game_playing_hand_row_on_selection_changed(
 );
 
 static int game_playing_hand_row_get_size(void);
+
+static bool custom_jokers_enabled = false; // On and off for aditional cards
 
 static void shop_reroll_row_on_key_transit(SelectionGrid* selection_grid, Selection* selection);
 static bool shop_reroll_row_on_selection_changed(
@@ -1322,10 +1327,36 @@ static ContainedHandTypes compute_contained_hand_types(void)
     }
 
     // Straight
-    if (hand_contains_straight(ranks))
-    {
+    // ---> START MOBIUS JOKER STRAIGHT CHECK <---
+    if (hand_contains_straight(ranks)) {
         hand_types.STRAIGHT = 1;
     }
+
+    if (is_joker_owned(60)) {
+        int min_len = get_straight_and_flush_size();
+        bool shortcut = is_shortcut_joker_active();
+        int streak = 0;
+        int gaps = 0;
+        
+        // Loop past 13 to allow the Ace (rank 12) to connect seamlessly to Two (rank 0)
+        for (int i = 0; i < 13 + min_len - 1; i++) {
+            if (ranks[i % 13] > 0) {
+                streak++;
+                gaps = 0;
+                if (streak >= min_len) hand_types.STRAIGHT = 1;
+            } else {
+                if (shortcut && gaps < 1 && streak > 0) {
+                    streak++;
+                    gaps++;
+                    if (streak >= min_len) hand_types.STRAIGHT = 1;
+                } else {
+                    streak = 0;
+                    gaps = 0;
+                }
+            }
+        }
+    }
+    // ---> END MOBIUS JOKER STRAIGHT CHECK <---
 
     // Flush
     bool has_flush = hand_contains_flush(suits);
@@ -1950,7 +1981,7 @@ static void game_round_on_init()
     hand_state = HAND_DRAW;
     cards_drawn = 0;
     hand_selections = 0;
-
+    display_ante(ante);
     playing_blind_token = blind_token_new(
         current_blind,
         CUR_BLIND_TOKEN_POS.x,
@@ -2016,6 +2047,7 @@ static void game_main_menu_on_init()
 {
     affine_background_change_background(AFFINE_BG_MAIN_MENU);
     change_background(BG_MAIN_MENU);
+    selection_x = MAIN_MENU_PLAY_BTN_IDX;
     main_menu_ace = card_object_new(card_new(SPADES, ACE));
     card_object_set_sprite(main_menu_ace, 0); // Set the sprite for the ace of spades
     main_menu_ace->sprite_object->sprite->obj->attr0 |=
@@ -2685,38 +2717,42 @@ static void ai_auto_play(void)
 
 static inline void game_playing_handle_round_over(void)
 {
+    // --- AI MOD LOGIC ---
     if (ai_mode_enabled)
     {
         if (!ai_is_playing)
         {
-            // Player's half is over, let AI play
             player_round_score = score;
             game_ai_turn_start();
             return; 
         }
 
-        // AI's half is over
         ai_round_score = score;
         ai_is_playing  = false;
         game_ai_turn_end(); 
         game_change_state(GAME_STATE_SCORE_COMPARE);
         return;
     }
+
     enum GameState next_state = GAME_STATE_ROUND_END;
 
+    // --- 1. WIN / LOSS CHECK ---
+    // We check the score against the CURRENT Ante requirement
     if (score >= blind_get_requirement(current_blind, ante))
     {
-        // ... (existing code)
+        if (current_blind == BLIND_TYPE_BOSS && ante >= MAX_ANTE)
+        {
+            next_state = GAME_STATE_WIN; // Beat Ante 8!
+        }
     }
     else if (hands == 0)
     {
-        next_state = GAME_STATE_LOSE;
+        next_state = GAME_STATE_LOSE; // Out of hands and didn't reach the score
     }
 
-    // ---> START JOKER ROUND END HOOK <---
+    // --- 2. JOKER ROUND END HOOK ---
     if (next_state == GAME_STATE_ROUND_END || next_state == GAME_STATE_WIN)
     {
-        // These two variables remember their state between frames
         static bool jokers_processed = false;
         static int delay_timer = 0;
 
@@ -2728,7 +2764,6 @@ static inline void game_playing_handle_round_over(void)
                 JokerEffect* effect = NULL;
                 u32 flags = joker_get_score_effect(joker_obj->joker, NULL, JOKER_EVENT_ON_ROUND_END, &effect);
                 
-                // 1. Golden Joker Payout (HAPPENS EXACTLY ONCE)
                 if (flags & JOKER_EFFECT_FLAG_MONEY) 
                 {
                     money += effect->money; 
@@ -2736,7 +2771,6 @@ static inline void game_playing_handle_round_over(void)
                     joker_object_score(joker_obj, NULL, JOKER_EVENT_ON_ROUND_END); 
                 }
                 
-                // 2. Banana Dying & Cavendish Unlock (HAPPENS EXACTLY ONCE)
                 if (flags & JOKER_EFFECT_FLAG_EXPIRE)
                 {
                     joker_object_score(joker_obj, NULL, JOKER_EVENT_ON_ROUND_END); 
@@ -2749,22 +2783,27 @@ static inline void game_playing_handle_round_over(void)
                 }
             }
             
-            // Lock the vault and start the clock
             jokers_processed = true;
             delay_timer = timer; 
         }
 
-        // Wait exactly 120 frames (2 seconds) before moving to the shop
+        // Wait exactly 120 frames before leaving the screen
         if (timer < delay_timer + 120)
         {
-            return; // Freezes the game state so you can read the text
+            return; 
         }
 
-        // 2 seconds are up! Clean the screen and unlock the vault for the next Blind
+        // --- 3. POST-DELAY CLEANUP & ANTE INCREMENT ---
+        // This is safe because it only happens once the wait is completely over!
         tte_erase_rect_wrapper(PLAYED_CARDS_SCORES_RECT);
         jokers_processed = false; 
+
+        if (current_blind == BLIND_TYPE_BOSS && next_state != GAME_STATE_WIN)
+        {
+            ante++;
+            display_ante(ante);
+        }
     }
-    // ---> END JOKER ROUND END HOOK <---
 
     game_change_state(next_state);
 }
@@ -5242,6 +5281,7 @@ static void game_blind_select_on_exit()
 
 static inline void game_start(void)
 {
+    tte_erase_screen();
     set_seed(rng_seed);
     // set_seed(9); // 9 is a full house
 
@@ -5315,48 +5355,72 @@ static inline void game_start(void)
     game_change_state(GAME_STATE_BLIND_SELECT);
 }
 
-static void game_main_menu_on_update()
+static void game_main_menu_on_update(void)
 {
-    change_background(BG_MAIN_MENU);
-
+    // --- 1. Animations & RNG ---
     card_object_update(main_menu_ace);
     main_menu_ace->sprite_object->trotation = lu_sin((timer << 8) / 2) / 3;
     main_menu_ace->sprite_object->rotation = main_menu_ace->sprite_object->trotation;
 
-    // Seed randomization
     rng_seed++;
-    // If the keys have changed, make it more pseudo-random
-    if (key_curr_state() != key_prev_state())
-    {
-        rng_seed *= 2;
-    }
+    if (key_curr_state() != key_prev_state()) rng_seed *= 2;
 
-if (key_hit(KEY_LEFT))
+    // --- 2. D-Pad Wrapping (0 -> 1 -> 2 -> 0) ---
+    if (key_hit(KEY_LEFT))
     {
-        if (selection_x > 0)
+        selection_x--;
+        if (selection_x < 0) 
         {
-            selection_x--;
-            play_sfx(SFX_CARD_FOCUS, MM_BASE_PITCH_RATE, SFX_DEFAULT_VOLUME);
+            selection_x = MAIN_MENU_IMPLEMENTED_BUTTONS - 1;
         }
+        play_sfx(SFX_CARD_FOCUS, MM_BASE_PITCH_RATE, SFX_DEFAULT_VOLUME);
     }
     else if (key_hit(KEY_RIGHT))
     {
-        if (selection_x < MAIN_MENU_IMPLEMENTED_BUTTONS - 1)
+        selection_x++;
+        if (selection_x >= MAIN_MENU_IMPLEMENTED_BUTTONS) 
         {
-            selection_x++;
-            play_sfx(SFX_CARD_FOCUS, MM_BASE_PITCH_RATE, SFX_DEFAULT_VOLUME);
+            selection_x = 0;
         }
+        play_sfx(SFX_CARD_FOCUS, MM_BASE_PITCH_RATE, SFX_DEFAULT_VOLUME);
     }
 
-    // Highlight the currently focused button; un-highlight the other.
-    if (selection_x == MAIN_MENU_PLAY_BTN_IDX)
+    // --- 3. Clear Previous Highlights (YOUR ORIGINAL LOGIC) ---
+    pal_bg_mem[MAIN_MENU_PLAY_BUTTON_OUTLINE_PID] = pal_bg_mem[MAIN_MENU_PLAY_BUTTON_MAIN_COLOR_PID];
+    pal_bg_mem[MAIN_MENU_AI_BUTTON_OUTLINE_PID]   = pal_bg_mem[MAIN_MENU_PLAY_BUTTON_MAIN_COLOR_PID];
+
+    Rect mod_btn_rect = { 8, 144, 64, 160 }; 
+    tte_erase_rect_wrapper(mod_btn_rect);
+
+    // --- 4. Draw Default Unselected Mod Button ---
+    tte_printf(
+        "#{P:%d,%d; cx:0x%X000}[%c] MODS", 
+        mod_btn_rect.left, mod_btn_rect.top, 
+        TTE_WHITE_PB, 
+        custom_jokers_enabled ? 'X' : ' '
+    );
+
+    // --- 5. Apply the Active Highlight & Handle Input ---
+    if (selection_x == MAIN_MENU_MOD_BTN_IDX)
     {
-        memset16(&pal_bg_mem[MAIN_MENU_PLAY_BUTTON_OUTLINE_PID], BTN_HIGHLIGHT_COLOR, 1);
-        memcpy16(
-            &pal_bg_mem[MAIN_MENU_AI_BUTTON_OUTLINE_PID],
-            &pal_bg_mem[MAIN_MENU_PLAY_BUTTON_MAIN_COLOR_PID],
-            1
+        tte_erase_rect_wrapper(mod_btn_rect); 
+        tte_printf(
+            "#{P:%d,%d; cx:0x%X000}[%c] MODS", 
+            mod_btn_rect.left, mod_btn_rect.top, 
+            TTE_YELLOW_PB, 
+            custom_jokers_enabled ? 'X' : ' '
         );
+
+        if (key_hit(SELECT_CARD))
+        {
+            play_sfx(SFX_BUTTON, MM_BASE_PITCH_RATE, BUTTON_SFX_VOLUME);
+            custom_jokers_enabled = !custom_jokers_enabled; 
+        }
+    }
+    else if (selection_x == MAIN_MENU_PLAY_BTN_IDX)
+    {
+        // YOUR ORIGINAL HIGHLIGHT LOGIC
+        pal_bg_mem[MAIN_MENU_PLAY_BUTTON_OUTLINE_PID] = BTN_HIGHLIGHT_COLOR;
 
         if (key_hit(SELECT_CARD))
         {
@@ -5365,23 +5429,19 @@ if (key_hit(KEY_LEFT))
             game_start();
         }
     }
-    else // MAIN_MENU_AI_BTN_IDX
+    else if (selection_x == MAIN_MENU_AI_BTN_IDX)
     {
-        memset16(&pal_bg_mem[MAIN_MENU_AI_BUTTON_OUTLINE_PID], BTN_HIGHLIGHT_COLOR, 1);
-        memcpy16(
-            &pal_bg_mem[MAIN_MENU_PLAY_BUTTON_OUTLINE_PID],
-            &pal_bg_mem[MAIN_MENU_PLAY_BUTTON_MAIN_COLOR_PID],
-            1
-        );
+        // YOUR ORIGINAL HIGHLIGHT LOGIC
+        pal_bg_mem[MAIN_MENU_AI_BUTTON_OUTLINE_PID] = BTN_HIGHLIGHT_COLOR;
 
         if (key_hit(SELECT_CARD))
         {
             play_sfx(SFX_BUTTON, MM_BASE_PITCH_RATE, BUTTON_SFX_VOLUME);
-            ai_mode_enabled = true;
+            ai_mode_enabled = true; 
             game_start();
         }
-        }
     }
+}
 
 static void game_over_anim_frame(void)
 {

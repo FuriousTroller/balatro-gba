@@ -12,6 +12,17 @@
 #include <string.h>
 #include <tonc.h>
 
+// --- modded_jokers_gfx.h ---
+#ifndef MODDED_JOKERS_GFX_H
+#define MODDED_JOKERS_GFX_H
+
+#include <stdbool.h>
+
+// A single helper function we expose to the vanilla engine
+bool get_modded_joker_gfx(int joker_id, const unsigned int** out_tiles, const unsigned short** out_pal);
+
+#endif
+
 #define JOKER_SCORE_TEXT_Y         48
 #define HELD_CARD_SCORE_TEXT_Y     108
 #define MAX_CARD_SCORE_STR_LEN     2
@@ -149,11 +160,29 @@ JokerObject* joker_object_new(Joker* joker)
     int joker_pb = s_allocate_pb_if_needed(joker->id);
     s_joker_pb_add_sprite_user(joker_pb);
 
-    memcpy32(
-        &tile_mem[TILE_MEM_OBJ_CHARBLOCK0_IDX][tile_index],
-        &joker_gfxTiles[joker_spritesheet_idx][joker_idx * TILE_SIZE * JOKER_SPRITE_OFFSET],
-        TILE_SIZE * JOKER_SPRITE_OFFSET
-    );
+    // ---> 1. YOUR TILES BYPASS HOOK <---
+    const unsigned int* modded_tiles = NULL;
+    const unsigned short* modded_pal = NULL;
+
+    if (get_modded_joker_gfx(joker->id, &modded_tiles, &modded_pal)) 
+    {
+        // Load custom modded graphics WITH the offset applied!
+        memcpy32(
+            &tile_mem[TILE_MEM_OBJ_CHARBLOCK0_IDX][tile_index],
+            &modded_tiles[joker_idx * TILE_SIZE * JOKER_SPRITE_OFFSET], 
+            TILE_SIZE * JOKER_SPRITE_OFFSET
+        );
+    }
+    else
+    {
+        // Load normal vanilla graphics
+        memcpy32(
+            &tile_mem[TILE_MEM_OBJ_CHARBLOCK0_IDX][tile_index],
+            &joker_gfxTiles[joker_spritesheet_idx][joker_idx * TILE_SIZE * JOKER_SPRITE_OFFSET],
+            TILE_SIZE * JOKER_SPRITE_OFFSET
+        );
+    }
+    // ---> END HOOK <---
 
     sprite_object_set_sprite(
         joker_object->sprite_object,
@@ -413,11 +442,30 @@ static int s_allocate_pb_if_needed(u8 joker_id)
     else
     {
         _joker_spritesheet_pb_map[joker_spritesheet_idx] = joker_pb;
-        memcpy16(
-            &pal_obj_mem[PAL_ROW_LEN * joker_pb],
-            joker_gfxPal[joker_spritesheet_idx],
-            NUM_ELEM_IN_ARR(joker_gfx0Pal)
-        );
+
+        // ---> 2. YOUR PALETTE BYPASS HOOK <---
+        const unsigned int* modded_tiles = NULL;
+        const unsigned short* modded_pal = NULL;
+
+        if (get_modded_joker_gfx(joker_id, &modded_tiles, &modded_pal)) 
+        {
+            // Load custom modded colors! (16 colors for a 4bpp sprite)
+            memcpy16(
+                &pal_obj_mem[PAL_ROW_LEN * joker_pb],
+                modded_pal,
+                16 
+            );
+        }
+        else
+        {
+            // Load normal vanilla colors
+            memcpy16(
+                &pal_obj_mem[PAL_ROW_LEN * joker_pb],
+                joker_gfxPal[joker_spritesheet_idx],
+                NUM_ELEM_IN_ARR(joker_gfx0Pal)
+            );
+        }
+        // ---> END HOOK <---
     }
 
     return joker_pb;
