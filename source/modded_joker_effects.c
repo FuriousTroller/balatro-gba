@@ -57,8 +57,8 @@ static u32 last_dance_joker_effect(
 // Because we set NUM_JOKERS_PER_SPRITESHEET to 2, 
 // Mobius reads the Left half, Last Dance reads the Right half!
 const JokerInfo modded_joker_registry[] = {
-    { UNCOMMON_JOKER,  7, mobius_joker_effect     }, // Local Index 0 -> In-game ID: 100
-    { RARE_JOKER, 14, last_dance_joker_effect }, // Local Index 1 -> In-game ID: 101
+    { UNCOMMON_JOKER,  7, mobius_joker_effect     }, // Local Index 0 -> In-game ID: 100 (Mobius = Recursion)
+    { RARE_JOKER, 20, last_dance_joker_effect }, // Local Index 1 -> In-game ID: 101
 };
 
 
