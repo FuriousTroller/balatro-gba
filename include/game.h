@@ -159,6 +159,9 @@ enum HandType* get_hand_type(void);
 int get_deck_top(void);
 int get_num_discards_remaining(void);
 int get_num_hands_remaining(void);
+void set_num_hands_remaining(int n);
+void set_num_discards_remaining(int n);
+void game_refresh_hud(void);
 
 u32 get_chips(void);
 void set_chips(u32 new_chips);

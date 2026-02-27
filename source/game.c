@@ -1,6 +1,7 @@
 #include "game.h"
 #include "ai_player.h"
 #include "affine_background.h"
+#include "debug.h"
 #include "affine_background_gfx.h"
 #include "audio_utils.h"
 #include "background_blind_select_gfx.h"
@@ -39,7 +40,7 @@
 #define ROUND_END_BLACK_PANEL_INIT_BOTTOM_SE 12
 
 #define MAIN_MENU_BUTTONS             3
-#define MAIN_MENU_IMPLEMENTED_BUTTONS 3 
+#define MAIN_MENU_IMPLEMENTED_BUTTONS 3
 #define MAIN_MENU_MOD_BTN_IDX         0
 #define MAIN_MENU_PLAY_BTN_IDX        1
 #define MAIN_MENU_AI_BTN_IDX          2
@@ -62,7 +63,7 @@
 
 #define STARTING_ROUND 0
 #define STARTING_ANTE  1
-#define STARTING_MONEY 4000
+#define STARTING_MONEY 0
 #define STARTING_SCORE 0
 
 #define CARD_FOCUSED_UNSEL_Y 10
@@ -97,8 +98,8 @@
 #define BOSS_BLIND_PRIMARY_PID               1
 #define MAIN_MENU_PLAY_BUTTON_OUTLINE_PID    2
 #define MAIN_MENU_AI_BUTTON_OUTLINE_PID      3
-#define MAIN_MENU_PLAY_BORDER_PID 8 
-#define MAIN_MENU_AI_BORDER_PID   9 
+#define MAIN_MENU_PLAY_BORDER_PID 8
+#define MAIN_MENU_AI_BORDER_PID   9
 #define REROLL_BTN_PID                       3
 #define BLIND_SKIP_BTN_PID                   5
 #define MAIN_MENU_PLAY_BUTTON_MAIN_COLOR_PID 5
@@ -251,6 +252,7 @@ static void change_background(enum BackgroundId id);
 static void display_temp_score(u32 value);
 static void display_score(u32 value);
 static void check_flaming_score(void);
+static inline void display_ante(int value);
 static void display_round(int value);
 static void display_hands(int value);
 static void display_discards(int value);
@@ -349,13 +351,13 @@ static bool can_discard_hand(void);
 // disable clang-format here to preserve the organization here
 // Rects                                       left     top     right   bottom
 // Screenblock rects
-static const Rect ROUND_END_MENU_RECT       = {9,       7,      24,     20 }; 
+static const Rect ROUND_END_MENU_RECT       = {9,       7,      24,     20 };
 
 static const Rect POP_MENU_ANIM_RECT        = {9,       7,      24,     31 };
-// The rect for popping menu animations (round end, shop, blinds) 
+// The rect for popping menu animations (round end, shop, blinds)
 // - extends beyond the visible screen to the end of the screenblock
-// It includes both the target and source position rects. 
-// This is because when popping, the target position is blank so we just animate 
+// It includes both the target and source position rects.
+// This is because when popping, the target position is blank so we just animate
 // the whole rect so we don't have to track its position
 
 static const Rect SINGLE_BLIND_SELECT_RECT  = {9,       7,      13,     31 };
@@ -370,11 +372,11 @@ static const Rect HAND_BG_RECT_SELECTING    = {9,       11,     24,     17 };
 static const Rect TOP_LEFT_ITEM_SRC_RECT    = {0,       20,     8,      25 };
 static const BG_POINT TOP_LEFT_PANEL_POINT  = {0,       0, };
 static const Rect TOP_LEFT_PANEL_ANIM_RECT  = {0,       0,      8,      4  };
-/* Contains the shop icon/current blind etc. 
- * The difference between TOP_LEFT_PANEL_ANIM_RECT and TOP_LEFT_PANEL_RECT 
+/* Contains the shop icon/current blind etc.
+ * The difference between TOP_LEFT_PANEL_ANIM_RECT and TOP_LEFT_PANEL_RECT
  * is due to an overlap between the bottom of the top left panel
  * and the top of the score panel in the tiles connecting them.
- * TOP_LEFT_PANEL_ANIM_RECT should be used for animations, 
+ * TOP_LEFT_PANEL_ANIM_RECT should be used for animations,
  * TOP_LEFT_PANEL_RECT for copies etc. but mind the overlap
  */
 static const Rect TOP_LEFT_PANEL_BOTTOM_ROW_RESET_RECT = {0, 28, 8,     28 };
@@ -406,7 +408,7 @@ static const Rect HAND_SIZE_RECT_SELECT     = {128,     128,    152,    136 };
 static const Rect HAND_SIZE_RECT_PLAYING    = {128,     152,    152,    160 };
 static const Rect HAND_TYPE_RECT            = {8,       64,     64,     72  };
 // Score displayed in the same place as the hand type
-static const Rect TEMP_SCORE_RECT           = {8,       64,     64,     72  }; 
+static const Rect TEMP_SCORE_RECT           = {8,       64,     64,     72  };
 static const Rect SCORE_RECT                = {24,      48,     64,     56  };
 
 static const Rect PLAYED_CARDS_SCORES_RECT  = {72,      48,     240,    56  };
@@ -621,6 +623,10 @@ static FIXED lerped_temp_score = 0;
 // AI vs. Player mod state
 static bool ai_mode_enabled = false;
 static bool ai_is_playing = false;
+// How many times the AI has discarded without playing a hand yet (reset to 0
+// after each play action).  Capped at AI_MAX_DISCARDS_PER_CYCLE.
+#define AI_MAX_DISCARDS_PER_CYCLE 2
+static int  ai_discard_cycle_count = 0;
 static u32 player_round_score = 0;
 static u32 ai_round_score = 0;
 static Card   _ai_cards[MAX_DECK_SIZE];
@@ -700,9 +706,9 @@ static inline void reset_shop_jokers(void)
 {
     // Calculate exactly where Vanilla ends
     int num_vanilla_jokers = get_joker_registry_size() - get_modded_registry_size();
-    
+
     bitset_clear(&_avail_jokers_bitset);
-    
+
     // 1. Add Vanilla Jokers (IDs 0 to 59)
     for (int i = 0; i < num_vanilla_jokers; i++)
     {
@@ -710,7 +716,7 @@ static inline void reset_shop_jokers(void)
     }
 
     // 2. Add Modded Jokers (IDs 100+) ONLY if the Mod button was checked
-    if (custom_jokers_enabled) 
+    if (custom_jokers_enabled)
     {
         for (int i = 0; i < get_modded_registry_size(); i++)
         {
@@ -818,6 +824,8 @@ void game_init()
     obj_hide(blind_select_tokens[BLIND_TYPE_SMALL]->obj);
     obj_hide(blind_select_tokens[BLIND_TYPE_BIG]->obj);
     obj_hide(blind_select_tokens[BLIND_TYPE_BOSS]->obj);
+
+    debug_on_game_init();
 }
 
 static inline void discarded_jokers_update_loop(void)
@@ -912,6 +920,10 @@ static inline void jokers_update_loop(void)
 
 void game_update()
 {
+    debug_on_game_update();
+    if (debug_is_overlay_active())
+        return;
+
     timer++;
 
     jokers_update_loop();
@@ -1054,6 +1066,56 @@ int get_num_discards_remaining(void)
 int get_num_hands_remaining(void)
 {
     return hands;
+}
+
+void set_num_hands_remaining(int n)
+{
+    hands = n;
+    display_hands(hands);
+}
+
+void set_num_discards_remaining(int n)
+{
+    discards = n;
+    display_discards(discards);
+}
+
+void game_refresh_hud(void)
+{
+    display_score(score);
+    display_money();
+    display_chips();
+    display_mult();
+    display_hands(hands);
+    display_discards(discards);
+    display_ante(ante);
+    display_round(round);
+
+    /* Redraw blind requirement (score min) and reward — these are paint-once
+     * TTE calls from game_round_on_init that must be restored after overlay. */
+    Rect blind_req_text_rect = BLIND_REQ_TEXT_RECT;
+    u32 blind_requirement = blind_get_requirement(current_blind, ante);
+    char blind_req_str_buff[UINT_MAX_DIGITS + 1];
+    truncate_uint_to_suffixed_str(
+        blind_requirement,
+        rect_width(&BLIND_REQ_TEXT_RECT) / TTE_CHAR_SIZE,
+        blind_req_str_buff
+    );
+    update_text_rect_to_right_align_str(&blind_req_text_rect, blind_req_str_buff, OVERFLOW_RIGHT);
+    tte_printf(
+        "#{P:%d,%d; cx:0x%X000}%s",
+        blind_req_text_rect.left,
+        blind_req_text_rect.top,
+        TTE_RED_PB,
+        blind_req_str_buff
+    );
+    tte_printf(
+        "#{P:%d,%d; cx:0x%X000}$%d",
+        BLIND_REWARD_RECT.left,
+        BLIND_REWARD_RECT.top,
+        TTE_YELLOW_PB,
+        blind_get_reward(current_blind)
+    );
 }
 
 int get_game_speed(void)
@@ -1353,7 +1415,7 @@ static ContainedHandTypes compute_contained_hand_types(void)
         bool shortcut = is_shortcut_joker_active();
         int streak = 0;
         int gaps = 0;
-        
+
         // Loop past 13 to allow the Ace (rank 12) to connect seamlessly to Two (rank 0)
         for (int i = 0; i < 13 + min_len - 1; i++) {
             if (ranks[i % 13] > 0) {
@@ -1377,11 +1439,11 @@ static ContainedHandTypes compute_contained_hand_types(void)
     // Flush
     bool has_flush = hand_contains_flush(suits);
 
-    if (is_joker_owned(58)) { 
+    if (is_joker_owned(58)) {
         int red_count = suits[HEARTS] + suits[DIAMONDS];
         int black_count = suits[SPADES] + suits[CLUBS];
         int required_size = get_straight_and_flush_size();
-        
+
         // If we have 5 of ANY red card, or 5 of ANY black card, it's a flush!
         if (red_count >= required_size || black_count >= required_size) {
             has_flush = true;
@@ -2000,14 +2062,14 @@ static void game_round_on_init()
 
     // ---> START LAST DANCE HOOK <---
     // ID 101 is the Last Dance Joker (Mod)
-    if (is_joker_owned(101)) 
+    if (is_joker_owned(101))
     {
-        if (hands > 1) 
+        if (hands > 1)
         {
             int stolen_hands = hands - 1;
             hands = 1;
             discards += stolen_hands;
-            display_hands(hands);       
+            display_hands(hands);
             display_discards(discards);
         }
     }
@@ -2074,6 +2136,8 @@ static void game_round_on_init()
      * otherwise or for the buttons.
      */
     game_playing_selection_grid.selection = GAME_PLAYING_INIT_SEL;
+
+    debug_on_round_init();
 }
 
 static void game_main_menu_on_init()
@@ -2142,12 +2206,12 @@ static void game_playing_execute_discard(void)
     // ---> START GREEN JOKER DISCARD HOOK <---
     for (int i = 0; i < list_get_len(&_owned_jokers_list); i++) {
         JokerObject* joker_obj = (JokerObject*)list_get_at_idx(&_owned_jokers_list, i);
-        
+
         // If the Joker is Green Joker (ID 56), subtract 1 Mult
-        if (joker_obj->joker->id == 56) { 
+        if (joker_obj->joker->id == 56) {
             // Prevent the Mult from dropping below 0
             if (joker_obj->joker->persistent_state > 0) {
-                joker_obj->joker->persistent_state -= 1; 
+                joker_obj->joker->persistent_state -= 1;
             }
             joker_object_shake(joker_obj, SFX_CARD_DESELECT); // Visual feedback
         }
@@ -2535,6 +2599,7 @@ static void game_ai_turn_start(void)
     sound_played        = false;
     discarded_card      = false;
     timer               = TM_ZERO;
+    ai_discard_cycle_count = 0;
 
     _joker_scored_itr          = list_itr_create(&_owned_jokers_list);
     _joker_card_scored_end_itr = list_itr_create(&_owned_jokers_list);
@@ -2669,50 +2734,66 @@ static void ai_auto_play(void)
         return;
 
     // Ask the AI brain for the best selection.
-    bool sel[MAX_HAND_SIZE] = {false};
-    int best_count = ai_select_best_hand(ai_hand_cards, ai_hand_size, sel);
+    bool          sel[MAX_HAND_SIZE] = {false};
+    enum HandType best_ht            = NONE;
+    int best_count = ai_select_best_hand(ai_hand_cards, ai_hand_size, sel,
+                                         &best_ht);
 
-    // If AI has discard tokens remaining and there are leftover cards not
-    // chosen for play, throw away the weakest one first.
+    // Discard decision logic:
+    //   - The AI may discard at most AI_MAX_DISCARDS_PER_CYCLE (2) times
+    //     before it MUST play a hand.  After playing, the counter resets.
+    //   - 1st discard chance: discard if hand is below STRAIGHT
+    //     (worth trying for a significant improvement).
+    //   - 2nd discard chance: only discard if hand is still below TWO_PAIR
+    //     (hand is still very weak after the first discard).
+    //   - The cards selected for discard are ALL leftover (non-best) cards,
+    //     so the AI always discards 1-5 cards in a single action.
     int leftover = ai_hand_size - best_count;
-    if (discards > 0 && leftover > 0)
+    bool should_discard = false;
+    if (ai_discard_cycle_count < AI_MAX_DISCARDS_PER_CYCLE &&
+        discards > 0 && leftover > 0)
     {
-        // pick the lowest-value leftover card
-        int worst_hi = -1;
-        int worst_val = INT_MAX;
-        for (int ci = 0; ci < ai_hand_size; ci++)
+        if (ai_discard_cycle_count == 0)
+        {
+            // First chance: discard anything below a STRAIGHT
+            should_discard = (best_ht < STRAIGHT);
+        }
+        else
+        {
+            // Second chance: only discard if hand is still below TWO_PAIR
+            should_discard = (best_ht < TWO_PAIR);
+        }
+    }
+
+    if (should_discard)
+    {
+        // Deselect everything first.
+        for (int i = 0; i <= hand_top; i++)
+        {
+            if (hand[i] && card_object_is_selected(hand[i]))
+                card_object_set_selected(hand[i], false);
+        }
+        hand_selections = 0;
+
+        // Select ALL leftover cards for discard in one shot (up to
+        // MAX_SELECTION_SIZE, which is the per-action card limit).
+        int discard_count = 0;
+        for (int ci = 0; ci < ai_hand_size && discard_count < MAX_SELECTION_SIZE; ci++)
         {
             if (!sel[ci])
             {
                 int hi = card_idx_map[ci];
-                int v = card_get_value(hand[hi]->card);
-                if (v < worst_val)
-                {
-                    worst_val = v;
-                    worst_hi = hi;
-                }
+                card_object_set_selected(hand[hi], true);
+                hand_selections++;
+                discard_count++;
             }
         }
-        if (worst_hi >= 0)
-        {
-            // deselect everything, then select only the chosen discard
-            for (int i = 0; i <= hand_top; i++)
-            {
-                if (hand[i] && card_object_is_selected(hand[i]))
-                {
-                    card_object_set_selected(hand[i], false);
-                }
-            }
-            hand_selections = 0;
 
-            card_object_set_selected(hand[worst_hi], true);
-            hand_selections = 1;
-            set_hand();
-
-            game_playing_execute_discard();
-            timer = TM_ZERO;
-            return; // let the discard animation/process happen
-        }
+        set_hand();
+        game_playing_execute_discard();
+        ai_discard_cycle_count++; // track discards within this hand cycle
+        timer = TM_ZERO;
+        return; // let the draw/animation pipeline replenish the hand
     }
 
     // Deselect everything first, then apply the new selection.
@@ -2743,7 +2824,10 @@ static void ai_auto_play(void)
 
     // Play the selected cards.
     if (can_play_hand())
+    {
+        ai_discard_cycle_count = 0; // reset: AI played, next hand starts fresh
         game_playing_execute_play_hand();
+    }
 
     timer = TM_ZERO; // Reset so the next think-delay starts fresh
 }
@@ -2757,12 +2841,12 @@ static inline void game_playing_handle_round_over(void)
         {
             player_round_score = score;
             game_ai_turn_start();
-            return; 
+            return;
         }
 
         ai_round_score = score;
         ai_is_playing  = false;
-        game_ai_turn_end(); 
+        game_ai_turn_end();
         game_change_state(GAME_STATE_SCORE_COMPARE);
         return;
     }
@@ -2796,40 +2880,40 @@ static inline void game_playing_handle_round_over(void)
                 JokerObject* joker_obj = (JokerObject*)list_get_at_idx(&_owned_jokers_list, i);
                 JokerEffect* effect = NULL;
                 u32 flags = joker_get_score_effect(joker_obj->joker, NULL, JOKER_EVENT_ON_ROUND_END, &effect);
-                
-                if (flags & JOKER_EFFECT_FLAG_MONEY) 
+
+                if (flags & JOKER_EFFECT_FLAG_MONEY)
                 {
-                    money += effect->money; 
-                    display_money(); 
-                    joker_object_score(joker_obj, NULL, JOKER_EVENT_ON_ROUND_END); 
+                    money += effect->money;
+                    display_money();
+                    joker_object_score(joker_obj, NULL, JOKER_EVENT_ON_ROUND_END);
                 }
-                
+
                 if (flags & JOKER_EFFECT_FLAG_EXPIRE)
                 {
-                    joker_object_score(joker_obj, NULL, JOKER_EVENT_ON_ROUND_END); 
-                    set_shop_joker_avail(54, true); 
-                    
-                    erase_price_under_sprite_object(joker_obj->sprite_object); 
-                    remove_owned_joker(i);                                     
-                    joker_start_discard_animation(joker_obj);                  
-                    i--; 
+                    joker_object_score(joker_obj, NULL, JOKER_EVENT_ON_ROUND_END);
+                    set_shop_joker_avail(54, true);
+
+                    erase_price_under_sprite_object(joker_obj->sprite_object);
+                    remove_owned_joker(i);
+                    joker_start_discard_animation(joker_obj);
+                    i--;
                 }
             }
-            
+
             jokers_processed = true;
-            delay_timer = timer; 
+            delay_timer = timer;
         }
 
         // Wait exactly 120 frames before leaving the screen
         if (timer < delay_timer + 120)
         {
-            return; 
+            return;
         }
 
         // --- 3. POST-DELAY CLEANUP & ANTE INCREMENT ---
         // This is safe because it only happens once the wait is completely over!
         tte_erase_rect_wrapper(PLAYED_CARDS_SCORES_RECT);
-        jokers_processed = false; 
+        jokers_processed = false;
 
         if (current_blind == BLIND_TYPE_BOSS && next_state != GAME_STATE_WIN)
         {
@@ -2936,7 +3020,7 @@ static inline void select_flush_and_straight_cards_in_played_hand(void)
     if (hand_type == FLUSH || hand_type == STRAIGHT_FLUSH || hand_type == ROYAL_FLUSH)
     {
         bool flush_selection[MAX_HAND_SIZE] = {false};
-        
+
         // ---> START SMEARED JOKER SELECTION <---
         if (is_joker_owned(58)) {
             int red_count = 0, black_count = 0;
@@ -2947,7 +3031,7 @@ static inline void select_flush_and_straight_cards_in_played_hand(void)
             }
             bool look_for_red = red_count >= min_len;
             bool look_for_black = black_count >= min_len;
-            
+
             // Mark all matching Smeared cards to visually "glow" when scored
             for (int i = 0; i <= played_top; i++) {
                 u8 suit = played[i]->card->suit;
@@ -4822,7 +4906,7 @@ static inline void game_shop_reroll(int* reroll_cost)
     // ---> START FLASH CARD HOOK <---
     for (int i = 0; i < list_get_len(&_owned_jokers_list); i++) {
         JokerObject* joker_obj = (JokerObject*)list_get_at_idx(&_owned_jokers_list, i);
-        if (joker_obj->joker->id == 59) { 
+        if (joker_obj->joker->id == 59) {
             joker_obj->joker->persistent_state += 2; // Add +2 Mult
             joker_object_shake(joker_obj, UNDEFINED); // Visual wiggle!
         }
@@ -5315,7 +5399,7 @@ static void game_blind_select_on_exit()
 static inline void game_start(void)
 {
     tte_erase_screen();
-    reset_shop_jokers();
+    reset_shop_jokers(); //important for Modded Cards
     set_seed(rng_seed);
     // set_seed(9); // 9 is a full house
 
@@ -5378,7 +5462,7 @@ static inline void game_start(void)
     set_shop_joker_avail(54, false);
 
     // Debug: Force spawn all 4 custom Jokers instantly
-    // int test_jokers[] = {58, 59, 56, 57}; 
+    // int test_jokers[] = {58, 59, 56, 57};
     // for(int i = 0; i < 4; i++) {
     //     JokerObject* obj = joker_object_new(joker_new(test_jokers[i]));
     //     obj->sprite_object->y = int2fx(HELD_JOKERS_POS.y);
@@ -5386,10 +5470,10 @@ static inline void game_start(void)
     //     add_joker(obj);
     // }
     // --- DEBUG TOOL: Instant Modded Cards ---
-    // if (custom_jokers_enabled) 
+    // if (custom_jokers_enabled)
     // {
-    //     int my_new_cards[] = { 100, 101 }; 
-    //     for (int i = 0; i < 2; i++) 
+    //     int my_new_cards[] = { 100, 101 };
+    //     for (int i = 0; i < 2; i++)
     //     {
     //         JokerObject* obj = joker_object_new(joker_new(my_new_cards[i]));
     //         obj->sprite_object->y = int2fx(HELD_JOKERS_POS.y);
@@ -5415,7 +5499,7 @@ static void game_main_menu_on_update(void)
     if (key_hit(KEY_LEFT))
     {
         selection_x--;
-        if (selection_x < 0) 
+        if (selection_x < 0)
         {
             selection_x = MAIN_MENU_IMPLEMENTED_BUTTONS - 1;
         }
@@ -5424,7 +5508,7 @@ static void game_main_menu_on_update(void)
     else if (key_hit(KEY_RIGHT))
     {
         selection_x++;
-        if (selection_x >= MAIN_MENU_IMPLEMENTED_BUTTONS) 
+        if (selection_x >= MAIN_MENU_IMPLEMENTED_BUTTONS)
         {
             selection_x = 0;
         }
@@ -5435,32 +5519,32 @@ static void game_main_menu_on_update(void)
     pal_bg_mem[MAIN_MENU_PLAY_BUTTON_OUTLINE_PID] = pal_bg_mem[MAIN_MENU_PLAY_BUTTON_MAIN_COLOR_PID];
     pal_bg_mem[MAIN_MENU_AI_BUTTON_OUTLINE_PID]   = pal_bg_mem[MAIN_MENU_PLAY_BUTTON_MAIN_COLOR_PID];
 
-    Rect mod_btn_rect = { 8, 144, 64, 160 }; 
+    Rect mod_btn_rect = { 8, 144, 64, 160 };
     tte_erase_rect_wrapper(mod_btn_rect);
 
     // --- 4. Draw Default Unselected Mod Button ---
     tte_printf(
-        "#{P:%d,%d; cx:0x%X000}[%c] MODS", 
-        mod_btn_rect.left, mod_btn_rect.top, 
-        TTE_WHITE_PB, 
+        "#{P:%d,%d; cx:0x%X000}[%c] MODS",
+        mod_btn_rect.left, mod_btn_rect.top,
+        TTE_WHITE_PB,
         custom_jokers_enabled ? 'X' : ' '
     );
 
     // --- 5. Apply the Active Highlight & Handle Input ---
     if (selection_x == MAIN_MENU_MOD_BTN_IDX)
     {
-        tte_erase_rect_wrapper(mod_btn_rect); 
+        tte_erase_rect_wrapper(mod_btn_rect);
         tte_printf(
-            "#{P:%d,%d; cx:0x%X000}[%c] MODS", 
-            mod_btn_rect.left, mod_btn_rect.top, 
-            TTE_YELLOW_PB, 
+            "#{P:%d,%d; cx:0x%X000}[%c] MODS",
+            mod_btn_rect.left, mod_btn_rect.top,
+            TTE_YELLOW_PB,
             custom_jokers_enabled ? 'X' : ' '
         );
 
         if (key_hit(SELECT_CARD))
         {
             play_sfx(SFX_BUTTON, MM_BASE_PITCH_RATE, BUTTON_SFX_VOLUME);
-            custom_jokers_enabled = !custom_jokers_enabled; 
+            custom_jokers_enabled = !custom_jokers_enabled;
         }
     }
     else if (selection_x == MAIN_MENU_PLAY_BTN_IDX)
@@ -5483,7 +5567,7 @@ static void game_main_menu_on_update(void)
         if (key_hit(SELECT_CARD))
         {
             play_sfx(SFX_BUTTON, MM_BASE_PITCH_RATE, BUTTON_SFX_VOLUME);
-            ai_mode_enabled = true; 
+            ai_mode_enabled = true;
             game_start();
         }
     }

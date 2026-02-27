@@ -167,10 +167,14 @@ static u32 ai_score_combo(Card** cards, int count)
  * Public API
  * ----------------------------------------------------------------------- */
 
-int ai_select_best_hand(Card** hand, int count, bool* out_sel)
+int ai_select_best_hand(Card** hand, int count, bool* out_sel,
+                        enum HandType* out_hand_type)
 {
     if (count <= 0)
+    {
+        if (out_hand_type) *out_hand_type = NONE;
         return 0;
+    }
 
     for (int i = 0; i < count; i++)
         out_sel[i] = false;
@@ -178,9 +182,10 @@ int ai_select_best_hand(Card** hand, int count, bool* out_sel)
     /* Limit to MAX_SELECTION_SIZE cards and to what is actually available. */
     int max_sel = (count < MAX_SELECTION_SIZE) ? count : MAX_SELECTION_SIZE;
 
-    u32  best_score = 0;
-    int  best_mask  = 0;
-    int  best_count = 0;
+    u32           best_score = 0;
+    int           best_mask  = 0;
+    int           best_count = 0;
+    enum HandType best_ht    = NONE;
 
     /* Enumerate every non-empty subset by bitmask.
      * count <= AI_HAND_SIZE (8) so the limit is at most 255 iterations. */
@@ -213,6 +218,7 @@ int ai_select_best_hand(Card** hand, int count, bool* out_sel)
             best_score = s;
             best_mask  = mask;
             best_count = n;
+            best_ht    = ai_compute_hand_type(combo, n);
         }
     }
 
@@ -220,5 +226,6 @@ int ai_select_best_hand(Card** hand, int count, bool* out_sel)
     for (int i = 0; i < count; i++)
         out_sel[i] = (best_mask & (1 << i)) != 0;
 
+    if (out_hand_type) *out_hand_type = best_ht;
     return best_count;
 }

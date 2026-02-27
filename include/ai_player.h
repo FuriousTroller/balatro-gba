@@ -16,12 +16,15 @@
  * estimates the score for each subset (hand type × joker bonuses), and marks
  * the highest-scoring subset in out_sel.
  *
- * @param hand      Array of Card* representing the AI's current hand.
- * @param count     Number of cards available (>= 0).
- * @param out_sel   Output boolean array (same size as hand). Set to true for
- *                  selected cards, false otherwise. Caller must zero-initialise.
- * @return          Number of cards selected (0 if count == 0).
+ * @param hand           Array of Card* representing the AI's current hand.
+ * @param count          Number of cards available (>= 0).
+ * @param out_sel        Output boolean array (same size as hand). Set to true
+ *                       for selected cards, false otherwise. Caller must
+ *                       zero-initialise.
+ * @param out_hand_type  If non-NULL, receives the HandType of the best combo.
+ * @return               Number of cards selected (0 if count == 0).
  */
-int ai_select_best_hand(Card** hand, int count, bool* out_sel);
+int ai_select_best_hand(Card** hand, int count, bool* out_sel,
+                        enum HandType* out_hand_type);
 
 #endif // AI_PLAYER_H
