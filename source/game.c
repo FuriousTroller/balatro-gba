@@ -63,7 +63,7 @@
 
 #define STARTING_ROUND 0
 #define STARTING_ANTE  1
-#define STARTING_MONEY 0
+#define STARTING_MONEY 4
 #define STARTING_SCORE 0
 
 #define CARD_FOCUSED_UNSEL_Y 10
@@ -2060,20 +2060,40 @@ static void game_round_on_init()
     cards_drawn = 0;
     hand_selections = 0;
 
-    // ---> START LAST DANCE HOOK <---
-    // ID 101 is the Last Dance Joker (Mod)
-    if (is_joker_owned(101))
+    // ---> START JAKER & LAST DANCE HOOK <---
+    int jaker_bonus = 0;
+    ListItr itr = list_itr_create(&_owned_jokers_list);
+    JokerObject* j_obj;
+    int idx = 0;
+    int total_jokers = list_get_len(&_owned_jokers_list);
+
+    // 1. Calculate Jaker
+    while ((j_obj = list_itr_next(&itr))) {
+        if (j_obj->joker->id == 103) { // Is it Jaker?
+            if (idx < total_jokers - 1) {
+                jaker_bonus += 1; // Blocked by a card on the right!
+            } else {
+                jaker_bonus += (MAX_JOKERS_HELD_SIZE - total_jokers); // Rightmost card gets full slots!
+            }
+        }
+        idx++;
+    }
+    hands += jaker_bonus;
+
+    // 2. Calculate Last Dance (It can steal Jaker's bonus hands too!)
+    if (is_joker_owned(101)) 
     {
-        if (hands > 1)
+        if (hands > 1) 
         {
             int stolen_hands = hands - 1;
             hands = 1;
             discards += stolen_hands;
-            display_hands(hands);
-            display_discards(discards);
         }
     }
-    // ---> END LAST DANCE HOOK <---
+
+    display_hands(hands);       
+    display_discards(discards); 
+    // ---> END HOOK <---
 
     display_ante(ante);
 
@@ -3685,6 +3705,12 @@ static inline void game_playing_process_input_and_state(void)
 {
 if (hand_state == HAND_SELECT)
     {
+        if (deck_get_size() == 0) 
+        {
+            hands = 0;
+            hand_state = HAND_SHUFFLING; // Trigger the end-of-round sequence
+            game_lose_on_init();
+        }
         if (ai_is_playing)
         {
             if (timer >= FRAMES(AI_THINK_DELAY_FRAMES))
@@ -4717,12 +4743,36 @@ static inline void game_sell_joker(int joker_idx)
         return;
 
     JokerObject* joker_object = (JokerObject*)list_get_at_idx(&_owned_jokers_list, joker_idx);
-    money += joker_get_sell_value(joker_object->joker);
-    display_money();
+    int sell_value = joker_get_sell_value(joker_object->joker);
+
+    // ---> START VOOR JOKER HOOK <---
+    bool voorhees_intercepted = false;
+    
+    // Don't intercept if we are selling Voor Joker himself!
+    if (joker_object->joker->id != 102) 
+    {
+        ListItr itr = list_itr_create(&_owned_jokers_list);
+        JokerObject* v_joker;
+        while ((v_joker = list_itr_next(&itr))) {
+            if (v_joker->joker->id == 102) {
+                // Feed the sell value to Voor Joker's Mult!
+                v_joker->joker->persistent_state += sell_value;
+                voorhees_intercepted = true;
+                
+                // Optional: Make Voor Joker wiggle so you know he ate the money!
+                joker_object_shake(v_joker, UNDEFINED); 
+            }
+        }
+    }
+
+    if (!voorhees_intercepted) {
+        money += sell_value; // Only gain money if Voor Joker didn't eat it!
+        display_money();
+    }
+    // ---> END VOOR JOKER HOOK <---
+
     erase_price_under_sprite_object(joker_object->sprite_object);
-
     remove_owned_joker(joker_idx);
-
     joker_start_discard_animation(joker_object);
 }
 

@@ -132,7 +132,9 @@ static const char* const joker_names[] = {
 static const char* const debug_modded_joker_names[] = {
     [0] = "Mobius",     // ID 100
     [1] = "LastDance",  // ID 101
-    /* [2] = "YourNext",  // ID 102 – add your next modded joker here */
+    [2] = "Joker Voorhees", // ID 103
+    [3] = "Jaker", // ID 104
+    /* [4] = "YourNext",  // ID 102 – add your next modded joker here */
 };
 
 #define NUM_NAMED_JOKERS      (int)(sizeof(joker_names) / sizeof(joker_names[0]))

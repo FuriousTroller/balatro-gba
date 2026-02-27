@@ -3,7 +3,8 @@
 #include <stddef.h>
 
 #include "custom_joker_sheet_0.h"
-// #include "custom_joker_sheet_1.h" // Add this when you make IDs 102 & 103!
+#include "custom_joker_sheet_1.h"
+// #include "custom_joker_sheet_x.h" // Add this when you make IDs 1xx & 1xx!
 
 #define MODDED_JOKER_START_ID 100
 #define NUM_JOKERS_PER_SPRITESHEET 2
@@ -49,6 +50,38 @@ static u32 last_dance_joker_effect(
     return JOKER_EFFECT_FLAG_NONE; 
 }
 
+static u32 jaker_joker_effect(
+    Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+)
+{
+    // Jaker modifies hands at the start of the round, so his scoring effect is empty!
+    return JOKER_EFFECT_FLAG_NONE; 
+}
+
+static u32 voor_joker_effect(
+    Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+)
+{
+    // Start with 2 Mult when conjured or bought
+    if (joker_event == JOKER_EVENT_ON_JOKER_CREATED) {
+        joker->persistent_state = 2; 
+    }
+    
+    // Add the stored Mult to the score!
+    if (joker_event == JOKER_EVENT_INDEPENDENT && joker->persistent_state > 0) {
+        *joker_effect = &modded_shared_joker_effect;
+        (*joker_effect)->mult = joker->persistent_state; 
+        return JOKER_EFFECT_FLAG_MULT;
+    }
+    return JOKER_EFFECT_FLAG_NONE; 
+}
+
 
 // --- 2. YOUR MODDED REGISTRY ---
 
@@ -59,6 +92,8 @@ static u32 last_dance_joker_effect(
 const JokerInfo modded_joker_registry[] = {
     { UNCOMMON_JOKER,  7, mobius_joker_effect     }, // Local Index 0 -> In-game ID: 100 (Mobius = Recursion)
     { RARE_JOKER, 20, last_dance_joker_effect }, // Local Index 1 -> In-game ID: 101
+    { COMMON_JOKER,    7, voor_joker_effect       }, // ID 102
+    { UNCOMMON_JOKER, 10, jaker_joker_effect      }, // ID 103
 };
 
 
