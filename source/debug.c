@@ -130,13 +130,16 @@ static const char* const joker_names[] = {
 /* Modded joker names, indexed by LOCAL modded index (0 = ID 100, 1 = ID 101, ...).
  * Add a new entry here whenever you add a joker to modded_joker_effects.c. */
 static const char* const debug_modded_joker_names[] = {
-    [0] = "Mobius",     // ID 100
-    [1] = "LastDance",  // ID 101
-    [2] = "Joker Voorhees", // ID 103
-    [3] = "Jaker", // ID 104
-    [4] = "Capacocha", // ID 105
-    [5] = "Overkill",
-    /* [4] = "YourNext",  // ID 102 – add your next modded joker here */
+    [0] = "Recursion",       // ID 100
+    [1] = "LastDance",       // ID 101
+    [2] = "Joker Voorhees",  // ID 102
+    [3] = "Jaker",           // ID 103
+    [4] = "Capacocha",       // ID 104
+    [5] = "Overkill",        // ID 105
+    [6] = "Jamming",         // ID 106 (Clanker mode)
+    [7] = "Captcha",         // ID 107 (Clanker mode)
+
+    /* [4] = "YourNext",  // ID xxx – add your next modded joker here */
 };
 
 #define NUM_NAMED_JOKERS      (int)(sizeof(joker_names) / sizeof(joker_names[0]))

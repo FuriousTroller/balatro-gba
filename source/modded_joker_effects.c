@@ -4,6 +4,9 @@
 
 #include "custom_joker_sheet_0.h"
 #include "custom_joker_sheet_1.h"
+#include "custom_joker_sheet_2.h"
+#include "custom_joker_sheet_3.h"
+
 // #include "custom_joker_sheet_x.h" // Add this when you make IDs 1xx & 1xx!
 
 // Creates a local shared memory struct specifically for your modded cards to use
@@ -125,6 +128,28 @@ static u32 overkill_joker_effect(Joker* joker,
     return JOKER_EFFECT_FLAG_NONE;
 }
 
+// --- CLANKER MODE EXCLUSIVES ---
+
+static u32 jamming_joker_effect(Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+) 
+{
+    // Passive: Logic handled externally during AI's turn
+    return JOKER_EFFECT_FLAG_NONE;
+}
+
+static u32 captcha_joker_effect(Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+) 
+{
+    // Passive: Logic handled externally during AI's scoring loop
+    return JOKER_EFFECT_FLAG_NONE;
+}
+
 // --- 2. YOUR MODDED REGISTRY ---
 
 // The engine knows to start reading this array at ID 100.
@@ -136,8 +161,10 @@ const JokerInfo modded_joker_registry[] = {
     { RARE_JOKER,            20,     last_dance_joker_effect       }, // Index 1 -> ID 101 (Last Dance)
     { COMMON_JOKER,          7,      voor_joker_effect             }, // Index 2 -> ID 102 (Voor)
     { UNCOMMON_JOKER,        10,     jaker_joker_effect            }, // Index 3 -> ID 103 (Jaker)
-    { RARE_JOKER,            18,      capacocha_joker_effect        }, // Index 4 -> ID 104 (Capacocha)
+    { RARE_JOKER,            18,     capacocha_joker_effect        }, // Index 4 -> ID 104 (Capacocha)
     { COMMON_JOKER,          6,      overkill_joker_effect         }, // Index 5 -> ID 105 (Overkill)
+    { RARE_JOKER,            17,     jamming_joker_effect          }, // ID 106 (Jamming) Clanker
+    { RARE_JOKER,            13,     captcha_joker_effect          }, // ID 107 (CaptchA) Clanker
 };
 
 

@@ -780,6 +780,11 @@ static inline void jokers_available_to_shop_init(void)
 
 void game_init()
 {
+    // Ban Clanker-exclusive Jokers from standard runs
+    if (!ai_mode_enabled) {
+        set_shop_joker_avail(106, false); // Ban Jamming
+        set_shop_joker_avail(107, false); // Ban CaptchA
+    }
     // Initialize all jokers list once
     _owned_jokers_list = list_create();
     _discarded_jokers_list = list_create();
@@ -3262,6 +3267,13 @@ static bool check_and_score_joker_for_event(
 
     while ((joker = list_itr_next(starting_joker_itr)))
     {
+        // ---> START JAMMING JOKER HOOK (ID 106) <---
+        // If AI is playing, you own Jamming, and this specific Joker is the leftmost one (index 0)
+        if (ai_is_playing && is_joker_owned(106) && joker == list_get_at_idx(&_owned_jokers_list, 0)) {
+            continue; // Skip scoring this Joker completely!
+        }
+        // ---> END JAMMING JOKER HOOK <---
+
         if (joker_object_score(joker, card_object, joker_event))
         {
             return true;
@@ -3407,6 +3419,16 @@ static inline bool play_scoring_cards_update(void)
             tte_set_special(TTE_BLUE_PB * TTE_SPECIAL_PB_MULT_OFFSET);
 
             u8 card_value = card_get_value(scored_card_object->card);
+
+            // ---> START CAPTCHA JOKER HOOK (ID 107) <---
+            if (ai_is_playing && is_joker_owned(107) && card_is_face(scored_card_object->card)) 
+            {
+            card_value = 0; // Nullify the chips!
+            
+            // Turn the "+0" popup text red instead of blue so the player visually sees the block!
+            tte_set_special(TTE_RED_PB * TTE_SPECIAL_PB_MULT_OFFSET); 
+            }
+            // ---> END CAPTCHA JOKER HOOK <---
 
             // Write the score to a character buffer variable
             char score_buffer[INT_MAX_DIGITS + 2]; // for '+' and null terminator
