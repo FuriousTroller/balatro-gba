@@ -723,6 +723,19 @@ static inline void reset_shop_jokers(void)
         {
             bitset_set_idx(&_avail_jokers_bitset, MODDED_JOKER_START_ID + i, true);
         }
+
+        // ---> START CLANKER BANS <---
+        // Forcefully shut these off in Normal Mode every time the shop pool resets!
+        if (!ai_mode_enabled) {
+            // Just add new IDs to this array! The loop handles the rest.
+            int clanker_bans[] = { 106, 107, 108, 109 }; 
+            int num_bans = sizeof(clanker_bans) / sizeof(clanker_bans[0]);
+            
+            for (int j = 0; j < num_bans; j++) {
+                set_shop_joker_avail(clanker_bans[j], false);
+            }
+        }
+        // ---> END CLANKER BANS <---
     }
 }
 
@@ -780,13 +793,6 @@ static inline void jokers_available_to_shop_init(void)
 
 void game_init()
 {
-    // Ban Clanker-exclusive Jokers from standard runs
-    if (!ai_mode_enabled) {
-        set_shop_joker_avail(106, false); // Ban Jamming
-        set_shop_joker_avail(107, false); // Ban CaptchA
-        set_shop_joker_avail(108, false); // Ban DDoS Attack
-        set_shop_joker_avail(109, false); // Ban Trojan Joker
-    }
     // Initialize all jokers list once
     _owned_jokers_list = list_create();
     _discarded_jokers_list = list_create();
@@ -5550,26 +5556,6 @@ static inline void game_start(void)
     // Lock Cavendish from appearing in the shop early
     set_shop_joker_avail(54, false);
 
-    // Debug: Force spawn all 4 custom Jokers instantly
-    // int test_jokers[] = {58, 59, 56, 57};
-    // for(int i = 0; i < 4; i++) {
-    //     JokerObject* obj = joker_object_new(joker_new(test_jokers[i]));
-    //     obj->sprite_object->y = int2fx(HELD_JOKERS_POS.y);
-    //     obj->sprite_object->ty = int2fx(HELD_JOKERS_POS.y);
-    //     add_joker(obj);
-    // }
-    // --- DEBUG TOOL: Instant Modded Cards ---
-    // if (custom_jokers_enabled)
-    // {
-    //     int my_new_cards[] = { 100, 101 };
-    //     for (int i = 0; i < 2; i++)
-    //     {
-    //         JokerObject* obj = joker_object_new(joker_new(my_new_cards[i]));
-    //         obj->sprite_object->y = int2fx(HELD_JOKERS_POS.y);
-    //         obj->sprite_object->ty = int2fx(HELD_JOKERS_POS.y);
-    //         add_joker(obj);
-    //     }
-    // }
 
     game_change_state(GAME_STATE_BLIND_SELECT);
 }
