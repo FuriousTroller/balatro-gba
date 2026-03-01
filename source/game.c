@@ -784,6 +784,8 @@ void game_init()
     if (!ai_mode_enabled) {
         set_shop_joker_avail(106, false); // Ban Jamming
         set_shop_joker_avail(107, false); // Ban CaptchA
+        set_shop_joker_avail(108, false); // Ban DDoS Attack
+        set_shop_joker_avail(109, false); // Ban Trojan Joker
     }
     // Initialize all jokers list once
     _owned_jokers_list = list_create();
@@ -2629,6 +2631,14 @@ static void game_ai_turn_start(void)
     discarded_card      = false;
     timer               = TM_ZERO;
     ai_discard_cycle_count = 0;
+
+    // ---> START DDoS ATTACK JOKER HOOK (ID 108) <---
+    if (is_joker_owned(108)) {
+        // We ensure hands stays > 0 so the AI engine doesn't softlock!
+        if (hands > 1) hands -= 1; 
+        if (discards > 0) discards -= 1;
+    }
+    // ---> END DDoS ATTACK JOKER HOOK <---
 
     _joker_scored_itr          = list_itr_create(&_owned_jokers_list);
     _joker_card_scored_end_itr = list_itr_create(&_owned_jokers_list);
@@ -5752,6 +5762,17 @@ static void game_score_compare_on_init(void)
     {
         main_bg_se_copy_rect_1_tile_vert(POP_MENU_ANIM_RECT, SCREEN_UP);
     }
+
+    // ---> START TROJAN JOKER HOOK (ID 109) <---
+    // Siphon 10% of the AI's final score directly into yours before it prints!
+    if (is_joker_owned(109)) {
+        u32 stolen_score = ai_round_score / 10;
+        if (stolen_score > 0) {
+            ai_round_score -= stolen_score;
+            player_round_score += stolen_score;
+        }
+    }
+    // ---> END TROJAN HORSE JOKER HOOK <---
 
     // ------ Player score -----------------------------------------------
     char player_buf[UINT_MAX_DIGITS + 8];

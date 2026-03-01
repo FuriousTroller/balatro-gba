@@ -150,6 +150,24 @@ static u32 captcha_joker_effect(Joker* joker,
     return JOKER_EFFECT_FLAG_NONE;
 }
 
+static u32 ddos_joker_effect(Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+) 
+{
+    return JOKER_EFFECT_FLAG_NONE; // Passive: Handled at AI Turn Start
+}
+
+static u32 trojan_joker_effect(Joker* joker, 
+    Card* scored_card, 
+    enum JokerEvent joker_event, 
+    JokerEffect** joker_effect
+) 
+{
+    return JOKER_EFFECT_FLAG_NONE; // Passive: Handled at Score Compare
+}
+
 // --- 2. YOUR MODDED REGISTRY ---
 
 // The engine knows to start reading this array at ID 100.
@@ -165,6 +183,8 @@ const JokerInfo modded_joker_registry[] = {
     { COMMON_JOKER,          6,      overkill_joker_effect         }, // Index 5 -> ID 105 (Overkill)
     { RARE_JOKER,            17,     jamming_joker_effect          }, // ID 106 (Jamming) Clanker
     { RARE_JOKER,            13,     captcha_joker_effect          }, // ID 107 (CaptchA) Clanker
+    { RARE_JOKER,            15,     ddos_joker_effect             }, // ID 108 (DDoS Attack)
+    { UNCOMMON_JOKER,        12,     trojan_joker_effect           }, // ID 109 (Trojan Joker)
 };
 
 
